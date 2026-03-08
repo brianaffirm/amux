@@ -4,11 +4,3 @@
 
 # OS files
 .DS_Store
-
-# Internal docs and development files
-CLAUDE.md
-README.internal.md
-RELEASING.md
-.claude/
-.dev/
-docs/
