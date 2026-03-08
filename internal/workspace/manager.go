@@ -98,9 +98,10 @@ func (m *Manager) Create(opts CreateOpts) (*Workspace, error) {
 		return nil, fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	// Copy gitignored files (e.g. CLAUDE.md) into the worktree for context.
-	// These stay invisible to git since the worktree shares the same .gitignore.
-	_ = CopyGitIgnoredFiles(opts.RepoRoot, worktreePath)
+	// Copy configured paths into the worktree.
+	if len(opts.CopyPaths) > 0 {
+		CopyPaths(opts.RepoRoot, worktreePath, opts.CopyPaths)
+	}
 
 	// Mark ready.
 	ws.Status = StatusReady

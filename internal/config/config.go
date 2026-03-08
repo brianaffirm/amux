@@ -14,9 +14,15 @@ type Config struct {
 	Cleanup       CleanupConfig                 `toml:"cleanup"`
 	Hooks         HooksConfig                   `toml:"hooks"`
 	Landing       LandingConfig                 `toml:"landing"`
+	Workspace     WorkspaceConfig               `toml:"workspace"`
 	Agents        map[string]AgentConfig        `toml:"agents"`
 	Notifications map[string]NotificationConfig `toml:"notifications"`
 	Timeouts      TimeoutsConfig                `toml:"timeouts"`
+}
+
+// WorkspaceConfig holds workspace creation settings.
+type WorkspaceConfig struct {
+	CopyPaths []string `toml:"copy_paths"`
 }
 
 // DefaultsConfig holds default workspace settings.
@@ -188,6 +194,24 @@ func merge(base, repo *Config) *Config {
 	}
 	if repo.Timeouts.TimeoutAction != "" && repo.Timeouts.TimeoutAction != DefaultConfig().Timeouts.TimeoutAction {
 		result.Timeouts.TimeoutAction = repo.Timeouts.TimeoutAction
+	}
+
+	if len(repo.Workspace.CopyPaths) > 0 {
+		seen := make(map[string]bool)
+		var merged []string
+		for _, p := range base.Workspace.CopyPaths {
+			if !seen[p] {
+				seen[p] = true
+				merged = append(merged, p)
+			}
+		}
+		for _, p := range repo.Workspace.CopyPaths {
+			if !seen[p] {
+				seen[p] = true
+				merged = append(merged, p)
+			}
+		}
+		result.Workspace.CopyPaths = merged
 	}
 
 	return &result

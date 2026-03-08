@@ -105,6 +105,7 @@ type CreateOpts struct {
 	BaseBranch string          // Branch to fork from (e.g. "main")
 	Source     SpawnSource     // How the workspace was spawned
 	Agent      *AgentIdentity  // Optional agent identity
+	CopyPaths  []string        // Paths to copy from repo root into worktree
 }
 
 // ListFilter specifies criteria for listing workspaces.
