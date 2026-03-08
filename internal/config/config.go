@@ -196,5 +196,23 @@ func merge(base, repo *Config) *Config {
 		result.Timeouts.TimeoutAction = repo.Timeouts.TimeoutAction
 	}
 
+	if len(repo.Workspace.CopyPaths) > 0 {
+		seen := make(map[string]bool)
+		var merged []string
+		for _, p := range base.Workspace.CopyPaths {
+			if !seen[p] {
+				seen[p] = true
+				merged = append(merged, p)
+			}
+		}
+		for _, p := range repo.Workspace.CopyPaths {
+			if !seen[p] {
+				seen[p] = true
+				merged = append(merged, p)
+			}
+		}
+		result.Workspace.CopyPaths = merged
+	}
+
 	return &result
 }

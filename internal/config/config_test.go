@@ -201,6 +201,52 @@ copy_paths = ["CLAUDE.md", "AGENTS.md", ".coflow/"]
 	}
 }
 
+func TestLoadRepo_MergesWorkspaceCopyPaths(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("AMUX_HOME", tmp)
+
+	// Global config with some paths.
+	globalPath := filepath.Join(tmp, "global-config.toml")
+	globalContent := `
+[workspace]
+copy_paths = ["CLAUDE.md", ".coflow/"]
+`
+	if err := os.WriteFile(globalPath, []byte(globalContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Repo config with additional paths (CLAUDE.md is a duplicate).
+	repoRoot := "/my/repo"
+	repoDir := filepath.Join(tmp, "repos", RepoHash(repoRoot))
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	repoContent := `
+[workspace]
+copy_paths = ["AGENTS.md", "CLAUDE.md"]
+`
+	if err := os.WriteFile(filepath.Join(repoDir, "config.toml"), []byte(repoContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadRepo(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should merge and deduplicate: CLAUDE.md, .coflow/, AGENTS.md (3 unique)
+	if len(cfg.Workspace.CopyPaths) != 3 {
+		t.Fatalf("CopyPaths = %v, want 3 entries (merged+deduped)", cfg.Workspace.CopyPaths)
+	}
+	// Verify order: base paths first, then new repo paths
+	expected := []string{"CLAUDE.md", ".coflow/", "AGENTS.md"}
+	for i, want := range expected {
+		if cfg.Workspace.CopyPaths[i] != want {
+			t.Errorf("CopyPaths[%d] = %q, want %q", i, cfg.Workspace.CopyPaths[i], want)
+		}
+	}
+}
+
 func TestIsProtectedBranch(t *testing.T) {
 	cfg := DefaultConfig()
 	tests := []struct {
