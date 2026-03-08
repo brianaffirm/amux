@@ -98,8 +98,10 @@ func (m *Manager) Create(opts CreateOpts) (*Workspace, error) {
 		return nil, fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	// Copy paths configured by user (wired in Task 4 via CreateOpts.CopyPaths).
-	// CopyPaths is called from spawn command after Create returns.
+	// Copy configured paths into the worktree.
+	if len(opts.CopyPaths) > 0 {
+		CopyPaths(opts.RepoRoot, worktreePath, opts.CopyPaths)
+	}
 
 	// Mark ready.
 	ws.Status = StatusReady
