@@ -114,6 +114,7 @@ func run() error {
 	// Register all commands.
 	rootCmd.AddCommand(
 		newSpawnCmd(initApp, &jsonFlag),
+		newAdoptCmd(initApp, &jsonFlag),
 		newLsCmd(initApp, &jsonFlag),
 		newLandCmd(initApp, &jsonFlag),
 		newDiffCmd(initApp, &jsonFlag),
