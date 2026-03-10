@@ -22,6 +22,9 @@ const (
 	EventQueueResolved          = "queue.resolved"
 	EventQueueTimeout           = "queue.timeout"
 	EventPolicyEvaluated        = "policy.evaluated"
+	EventLandingForced          = "workspace.landing.forced"
+	EventLandingHooksSkipped    = "workspace.landing.hooks_skipped"
+	EventCleanupForced          = "workspace.cleanup.forced"
 )
 
 // Event represents an immutable state-change record.

@@ -2,6 +2,7 @@ package landing
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/brianho/amux/internal/git"
@@ -66,6 +67,11 @@ type HookConfig interface {
 	GetHook(hookType HookType) string
 }
 
+// EventEmitter emits audit events. Implemented by the store package.
+type EventEmitter interface {
+	EmitBypassEvent(kind, workspaceID, repoRoot, actor, reason string, data map[string]interface{}) error
+}
+
 // LandOpts controls landing behavior.
 type LandOpts struct {
 	Strategy MergeStrategy
@@ -74,6 +80,7 @@ type LandOpts struct {
 	Push     bool // push branch instead of local merge
 	PR       bool // push branch for PR creation (same as Push)
 	NoHooks  bool // skip hooks (creates audit event)
+	Reason   string // audit reason for bypass
 }
 
 // LandResult holds the outcome of a successful land operation.
@@ -106,6 +113,7 @@ type LandingPipeline struct {
 	ops        WorkspaceOps
 	hookRunner *HookRunner
 	hooks      HookConfig
+	emitter    EventEmitter
 }
 
 // NewLandingPipeline creates a new pipeline with the given dependencies.
@@ -116,6 +124,11 @@ func NewLandingPipeline(store WorkspaceStore, ops WorkspaceOps, hooks HookConfig
 		hookRunner: NewHookRunner(hookTimeout),
 		hooks:      hooks,
 	}
+}
+
+// SetEventEmitter sets the event emitter for audit events.
+func (p *LandingPipeline) SetEventEmitter(e EventEmitter) {
+	p.emitter = e
 }
 
 // Land performs the full landing flow for a workspace.
@@ -134,6 +147,15 @@ func (p *LandingPipeline) Land(id string, opts LandOpts) (*LandResult, error) {
 		if !isLandableStatus(ws.Status) {
 			return nil, fmt.Errorf("workspace %s has status %s, must be READY, IDLE, or PAUSED to land", id, ws.Status)
 		}
+	} else if p.emitter != nil {
+		_ = p.emitter.EmitBypassEvent(
+			"workspace.landing.forced",
+			id, ws.RepoRoot, os.Getenv("USER"), opts.Reason,
+			map[string]interface{}{
+				"skipped_status_check": true,
+				"original_status":     string(ws.Status),
+			},
+		)
 	}
 
 	strategy := opts.Strategy
@@ -142,6 +164,15 @@ func (p *LandingPipeline) Land(id string, opts LandOpts) (*LandResult, error) {
 	}
 
 	// 3. Run pre-land hooks (blocking)
+	if opts.NoHooks && p.emitter != nil {
+		_ = p.emitter.EmitBypassEvent(
+			"workspace.landing.hooks_skipped",
+			id, ws.RepoRoot, os.Getenv("USER"), opts.Reason,
+			map[string]interface{}{
+				"skipped_hooks": []string{"pre-land", "post-land"},
+			},
+		)
+	}
 	if !opts.NoHooks {
 		if err := p.store.UpdateStatus(id, StatusValidating); err != nil {
 			return nil, fmt.Errorf("failed to update status: %w", err)
