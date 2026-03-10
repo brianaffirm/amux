@@ -24,6 +24,7 @@ type WorkspaceRow struct {
 	Activity     string // time since last event
 	Drift        int    // commits behind base
 	Agent        string // runtime name
+	TaskStatus   string // dispatch status e.g. "d-0001 ▶"
 	Branch       string
 	Added        int
 	Removed      int
@@ -168,7 +169,9 @@ func loadRepoWorkspaces(repoRoot, storePath string) ([]WorkspaceRow, error) {
 	var rows []WorkspaceRow
 	for _, ws := range workspaces {
 		health := s.LastHookResult(ws.RepoRoot, ws.ID)
-		rows = append(rows, buildWorkspaceRow(ws, health))
+		row := buildWorkspaceRow(ws, health)
+		row.TaskStatus = resolveTaskStatus(s, ws.RepoRoot, ws.ID)
+		rows = append(rows, row)
 	}
 	return rows, nil
 }
@@ -229,6 +232,34 @@ func openAndSave(dbPath string, ws *store.Workspace, result *workspace.Reconcile
 		},
 	})
 	return nil
+}
+
+// resolveTaskStatus queries the store for the latest dispatch status of a workspace.
+func resolveTaskStatus(s *store.SQLiteStore, repoRoot, wsID string) string {
+	disp, err := s.LatestDispatch(repoRoot, wsID)
+	if err != nil || disp == nil {
+		return ""
+	}
+	dispID, _ := disp.Data["dispatch_id"].(string)
+	if dispID == "" {
+		return ""
+	}
+
+	evt, err := s.LatestTaskEvent(repoRoot, wsID, dispID)
+	if err != nil || evt == nil {
+		return dispID + " ◌"
+	}
+
+	switch evt.Kind {
+	case store.EventTaskStarted:
+		return dispID + " ▶"
+	case store.EventTaskCompleted:
+		return dispID + " ✓"
+	case store.EventTaskFailed:
+		return dispID + " ✗"
+	default:
+		return dispID + " ◌"
+	}
 }
 
 func buildWorkspaceRow(ws *store.Workspace, health string) WorkspaceRow {
@@ -729,12 +760,13 @@ func (m DashboardModel) renderDashboard() string {
 		b.WriteString("\n")
 	} else {
 		sep := dimStyle.Render("│")
-		cols := []int{14, 10, 8, 8, 6, 10, 10, 8, 5}
+		cols := []int{14, 10, 12, 8, 8, 6, 10, 10, 8, 5}
 
 		// Column header.
 		headers := []string{
 			headerColStyle.Render("ID"),
 			headerColStyle.Render("STATUS"),
+			headerColStyle.Render("TASK"),
 			headerColStyle.Render("HEALTH"),
 			headerColStyle.Render("ACTIVITY"),
 			headerColStyle.Render("DRIFT"),
@@ -804,9 +836,16 @@ func (m DashboardModel) renderDashboard() string {
 				agentStr = ws.Agent
 			}
 
+			// Task column.
+			taskStr := dimStyle.Render("—")
+			if ws.TaskStatus != "" {
+				taskStr = ws.TaskStatus
+			}
+
 			cells := []string{
 				ws.ID,
 				statusStr,
+				taskStr,
 				healthStr,
 				activityStr,
 				driftStr,
