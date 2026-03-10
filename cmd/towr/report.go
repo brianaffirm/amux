@@ -9,6 +9,7 @@ import (
 	"github.com/brianaffirm/towr/internal/dispatch"
 	"github.com/brianaffirm/towr/internal/store"
 	"github.com/brianaffirm/towr/internal/workspace"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -81,6 +82,7 @@ func newReportCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Co
 
 			// 4. Emit event.
 			if err := app.store.EmitEvent(store.Event{
+				ID:          uuid.New().String(),
 				Kind:        eventKind,
 				WorkspaceID: wsID,
 				RepoRoot:    app.repoRoot,

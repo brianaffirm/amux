@@ -9,6 +9,7 @@ import (
 	"github.com/brianaffirm/towr/internal/dispatch"
 	"github.com/brianaffirm/towr/internal/store"
 	"github.com/brianaffirm/towr/internal/workspace"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -98,6 +99,7 @@ func newDispatchCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.
 
 			// 6. Emit task.dispatched event.
 			if err := app.store.EmitEvent(store.Event{
+				ID:          uuid.New().String(),
 				Kind:        store.EventTaskDispatched,
 				WorkspaceID: wsID,
 				RepoRoot:    app.repoRoot,

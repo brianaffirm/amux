@@ -25,11 +25,14 @@ RESULT_FILE="$COMMS_DIR/result.json"
 HEARTBEAT_PID=$!
 trap 'kill $HEARTBEAT_PID 2>/dev/null || true' EXIT
 
+# Allow claude to run even if dispatched from inside a Claude Code session
+unset CLAUDECODE
+
 # Report started
 towr report "$WS_ID" --dispatch-id "$DISPATCH_ID" --status started
 
 # Run claude
-if claude -p "$(cat "$PROMPT_FILE")" --output-format json > "$RESULT_FILE" 2>"$RESULT_FILE.err"; then
+if claude -p "$(cat "$PROMPT_FILE")" --dangerously-skip-permissions --output-format json > "$RESULT_FILE" 2>"$RESULT_FILE.err"; then
   towr report "$WS_ID" --dispatch-id "$DISPATCH_ID" --status success --file "$RESULT_FILE"
 else
   towr report "$WS_ID" --dispatch-id "$DISPATCH_ID" --status failed --file "$RESULT_FILE.err"

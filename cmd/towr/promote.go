@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/brianaffirm/towr/internal/store"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -43,6 +44,7 @@ func newPromoteCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.C
 
 			// 2. Emit task.promoted event.
 			if err := app.store.EmitEvent(store.Event{
+				ID:          uuid.New().String(),
 				Kind:        store.EventTaskPromoted,
 				WorkspaceID: wsID,
 				RepoRoot:    app.repoRoot,
