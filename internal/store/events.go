@@ -25,6 +25,7 @@ const (
 	EventLandingForced          = "workspace.landing.forced"
 	EventLandingHooksSkipped    = "workspace.landing.hooks_skipped"
 	EventCleanupForced          = "workspace.cleanup.forced"
+	EventWorkspaceAdopted       = "workspace.adopted"
 )
 
 // Event represents an immutable state-change record.

@@ -114,6 +114,7 @@ func run() error {
 	// Register all commands.
 	rootCmd.AddCommand(
 		newSpawnCmd(initApp, &jsonFlag),
+		newAdoptCmd(initApp, &jsonFlag),
 		newLsCmd(initApp, &jsonFlag),
 		newLandCmd(initApp, &jsonFlag),
 		newDiffCmd(initApp, &jsonFlag),
@@ -127,6 +128,8 @@ func run() error {
 		newRespondCmd(initApp, &jsonFlag),
 		newPreviewCmd(initApp, &jsonFlag),
 		newTUICmd(initApp),
+		newShellHookCmd(),
+		newNudgeCmd(),
 	)
 
 	// If no subcommand was provided, launch the TUI dashboard.
