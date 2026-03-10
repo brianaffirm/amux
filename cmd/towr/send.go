@@ -13,22 +13,38 @@ import (
 )
 
 func newSendCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Command {
-	var waitFlag bool
+	var (
+		waitFlag    bool
+		approveFlag bool
+	)
 
 	cmd := &cobra.Command{
 		Use:               "send <workspace-id> <message>",
-		Short:             "Send a follow-up message to an interactive session",
-		Long:              "Send a follow-up message to a workspace running an interactive Claude session. The workspace must be in IDLE state with a previous interactive dispatch.",
-		Args:              cobra.ExactArgs(2),
+		Short:             "Send a follow-up message or approve a permission dialog",
+		Long:              "Send a follow-up message to a workspace running an interactive Claude session. Use --approve to send Enter to approve a permission dialog without requiring idle state.",
+		Args:              cobra.RangeArgs(1, 2),
 		ValidArgsFunction: workspaceIDCompletion(initApp),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			wsID := args[0]
-			message := args[1]
 
 			app, err := initApp()
 			if err != nil {
 				return err
 			}
+
+			// --approve mode: just send Enter to approve a permission dialog.
+			if approveFlag {
+				if err := app.term.SendKeys(wsID, "Enter"); err != nil {
+					return fmt.Errorf("send enter: %w", err)
+				}
+				fmt.Printf("Sent approval to %s\n", wsID)
+				return nil
+			}
+
+			if len(args) < 2 {
+				return fmt.Errorf("message argument required (or use --approve)")
+			}
+			message := args[1]
 
 			// 1. Validate workspace exists and is IDLE (interactive session waiting).
 			sw, err := app.store.GetWorkspace(app.repoRoot, wsID)
@@ -147,6 +163,7 @@ func newSendCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 	}
 
 	cmd.Flags().BoolVar(&waitFlag, "wait", false, "wait for the response to complete")
+	cmd.Flags().BoolVar(&approveFlag, "approve", false, "send Enter to approve a permission dialog")
 
 	return cmd
 }
