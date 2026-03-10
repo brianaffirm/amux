@@ -7,29 +7,29 @@ import (
 	"path/filepath"
 )
 
-// AmuxHome returns the root amux directory, defaulting to ~/.amux.
-// Respects the AMUX_HOME environment variable for overriding.
-func AmuxHome() string {
-	if v := os.Getenv("AMUX_HOME"); v != "" {
+// TowrHome returns the root towr directory, defaulting to ~/.towr.
+// Respects the TOWR_HOME environment variable for overriding.
+func TowrHome() string {
+	if v := os.Getenv("TOWR_HOME"); v != "" {
 		return v
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		// Fallback — should not happen in practice.
-		return filepath.Join(os.TempDir(), ".amux")
+		return filepath.Join(os.TempDir(), ".towr")
 	}
-	return filepath.Join(home, ".amux")
+	return filepath.Join(home, ".towr")
 }
 
-// RepoStatePath returns the per-repo state directory: ~/.amux/repos/<hash>/
+// RepoStatePath returns the per-repo state directory: ~/.towr/repos/<hash>/
 func RepoStatePath(repoRoot string) string {
-	return filepath.Join(AmuxHome(), "repos", RepoHash(repoRoot))
+	return filepath.Join(TowrHome(), "repos", RepoHash(repoRoot))
 }
 
 // WorktreeRoot returns the directory where worktrees are stored.
-// Defaults to ~/.amux/worktrees but can be overridden in config.
+// Defaults to ~/.towr/worktrees but can be overridden in config.
 func WorktreeRoot() string {
-	return filepath.Join(AmuxHome(), "worktrees")
+	return filepath.Join(TowrHome(), "worktrees")
 }
 
 // RepoHash produces a short deterministic hash of a repo root path,
@@ -39,11 +39,11 @@ func RepoHash(repoRoot string) string {
 	return fmt.Sprintf("%x", h[:8]) // 16 hex chars — short but collision-resistant
 }
 
-// EnsureAmuxDirs creates the core amux directory structure if it doesn't exist.
-func EnsureAmuxDirs() error {
+// EnsureTowrDirs creates the core towr directory structure if it doesn't exist.
+func EnsureTowrDirs() error {
 	dirs := []string{
-		AmuxHome(),
-		filepath.Join(AmuxHome(), "repos"),
+		TowrHome(),
+		filepath.Join(TowrHome(), "repos"),
 		WorktreeRoot(),
 	}
 	for _, d := range dirs {
@@ -56,7 +56,7 @@ func EnsureAmuxDirs() error {
 
 // GlobalConfigPath returns the path to the global config file.
 func GlobalConfigPath() string {
-	return filepath.Join(AmuxHome(), "global-config.toml")
+	return filepath.Join(TowrHome(), "global-config.toml")
 }
 
 // RepoConfigPath returns the path to a repo-specific config file.

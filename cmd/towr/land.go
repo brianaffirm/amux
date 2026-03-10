@@ -219,7 +219,7 @@ func newLandCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 				}
 
 				fmt.Printf("  Duration: %s\n", result.Duration.Round(time.Millisecond))
-				fmt.Printf("\nWorkspace kept alive. Run 'amux cleanup %s' after PR merges.\n", wsID)
+				fmt.Printf("\nWorkspace kept alive. Run 'towr cleanup %s' after PR merges.\n", wsID)
 				return nil
 			}
 

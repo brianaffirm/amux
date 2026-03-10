@@ -38,9 +38,9 @@ func run() error {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "amux",
+		Use:   "towr",
 		Short: "Governed merge pipeline for AI agent workspaces",
-		Long:  "amux isolates, validates, and lands AI-generated code changes across any agent runtime.",
+		Long:  "towr isolates, validates, and lands AI-generated code changes across any agent runtime.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -67,7 +67,7 @@ func run() error {
 			}
 		}
 
-		if err := config.EnsureAmuxDirs(); err != nil {
+		if err := config.EnsureTowrDirs(); err != nil {
 			return nil, err
 		}
 
@@ -95,7 +95,7 @@ func run() error {
 
 		// Terminal backend: use tmux if available, else headless.
 		var term terminal.Backend
-		term = terminal.NewTmuxBackend("amux")
+		term = terminal.NewTmuxBackend("towr")
 		// Fall back to headless if tmux is not installed.
 		if _, err := lookupTmux(); err != nil {
 			term = terminal.NewHeadlessBackend()
@@ -157,7 +157,7 @@ func lookupTmux() (string, error) {
 // Unlike the closure-based initApp, this is a standalone function used when
 // the caller already knows the repo root (e.g., via global resolution).
 func initAppForRepo(repoRoot string) (*appContext, error) {
-	if err := config.EnsureAmuxDirs(); err != nil {
+	if err := config.EnsureTowrDirs(); err != nil {
 		return nil, err
 	}
 
@@ -181,7 +181,7 @@ func initAppForRepo(repoRoot string) (*appContext, error) {
 	mgr := workspace.NewManager(wsStore)
 
 	var term terminal.Backend
-	term = terminal.NewTmuxBackend("amux")
+	term = terminal.NewTmuxBackend("towr")
 	if _, err := lookupTmux(); err != nil {
 		term = terminal.NewHeadlessBackend()
 	}
@@ -198,7 +198,7 @@ func initAppForRepo(repoRoot string) (*appContext, error) {
 // resolveGlobal finds a workspace by ref (bare ID or repo:id) across all repos.
 // Returns the workspace, a store for that repo (caller must close), and a terminal backend.
 func resolveGlobal(ref string) (*store.Workspace, *store.SQLiteStore, terminal.Backend, error) {
-	reposDir := filepath.Join(config.AmuxHome(), "repos")
+	reposDir := filepath.Join(config.TowrHome(), "repos")
 	sw, err := store.FindWorkspaceByID(reposDir, ref)
 	if err != nil {
 		return nil, nil, nil, err
@@ -207,7 +207,7 @@ func resolveGlobal(ref string) (*store.Workspace, *store.SQLiteStore, terminal.B
 	// Open the appropriate store: repo-scoped or global for non-repo workspaces.
 	var dbPath string
 	if sw.RepoRoot == "" {
-		dbPath = filepath.Join(config.AmuxHome(), "global-state.db")
+		dbPath = filepath.Join(config.TowrHome(), "global-state.db")
 	} else {
 		repoState := config.RepoStatePath(sw.RepoRoot)
 		dbPath = filepath.Join(repoState, "state.db")
@@ -222,7 +222,7 @@ func resolveGlobal(ref string) (*store.Workspace, *store.SQLiteStore, terminal.B
 	if _, lookupErr := lookupTmux(); lookupErr != nil {
 		term = terminal.NewHeadlessBackend()
 	} else {
-		term = terminal.NewTmuxBackend("amux")
+		term = terminal.NewTmuxBackend("towr")
 	}
 
 	return sw, s, term, nil
@@ -332,7 +332,7 @@ func workspaceIDCompletion(initApp func() (*appContext, error)) func(cmd *cobra.
 		app, err := initApp()
 		if err != nil {
 			// Global completion: scan all repos.
-			reposDir := filepath.Join(config.AmuxHome(), "repos")
+			reposDir := filepath.Join(config.TowrHome(), "repos")
 			all, err := store.ListAllWorkspaces(reposDir)
 			if err != nil {
 				return nil, cobra.ShellCompDirectiveNoFileComp

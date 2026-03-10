@@ -87,21 +87,21 @@ func newDoctorCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Co
 			if tmuxErr != nil {
 				problems = append(problems, Problem{
 					Kind:   "missing_dependency",
-					Detail: "tmux is not installed — terminal management disabled (amux open will print paths instead of attaching)",
+					Detail: "tmux is not installed — terminal management disabled (towr open will print paths instead of attaching)",
 				})
 			} else {
-				// tmux is installed — check if any amux sessions exist.
+				// tmux is installed — check if any towr sessions exist.
 				panes, _ := app.term.ListPanes()
 				if len(panes) == 0 {
 					problems = append(problems, Problem{
 						Kind:   "no_tmux_session",
-						Detail: "no amux tmux sessions found — amux open will not be able to attach (sessions are created by amux spawn)",
+						Detail: "no towr tmux sessions found — towr open will not be able to attach (sessions are created by towr spawn)",
 					})
 				}
 			}
 
-			// Check for orphaned amux branches not tracked in the store.
-			branches, err := listAmuxBranches(app.repoRoot)
+			// Check for orphaned towr branches not tracked in the store.
+			branches, err := listTowrBranches(app.repoRoot)
 			if err == nil {
 				tracked := make(map[string]bool)
 				for _, ws := range workspaces {
@@ -145,9 +145,9 @@ func newDoctorCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Co
 	return cmd
 }
 
-// listAmuxBranches returns all branches with the amux/ prefix.
-func listAmuxBranches(repoRoot string) ([]string, error) {
-	out, err := gitpkg.RunGit(repoRoot, "branch", "--list", "amux/*", "--format", "%(refname:short)")
+// listTowrBranches returns all branches with the towr/ prefix.
+func listTowrBranches(repoRoot string) ([]string, error) {
+	out, err := gitpkg.RunGit(repoRoot, "branch", "--list", "towr/*", "--format", "%(refname:short)")
 	if err != nil {
 		return nil, err
 	}

@@ -25,7 +25,7 @@ func newTUICmd(initApp func() (*appContext, error)) *cobra.Command {
 func runTUI(initApp func() (*appContext, error)) error {
 	app, appErr := initApp()
 
-	reposDir := filepath.Join(config.AmuxHome(), "repos")
+	reposDir := filepath.Join(config.TowrHome(), "repos")
 	var repoRoot, repoStorePath string
 	var allRepos bool
 

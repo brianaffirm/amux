@@ -38,12 +38,12 @@ func TestSpawnLsLandCleanup(t *testing.T) {
 	mustGit(t, repoDir, "add", ".")
 	mustGit(t, repoDir, "commit", "-m", "initial commit")
 
-	// Set up amux state directory.
-	amuxHome := t.TempDir()
-	t.Setenv("AMUX_HOME", amuxHome)
+	// Set up towr state directory.
+	towrHome := t.TempDir()
+	t.Setenv("TOWR_HOME", towrHome)
 
 	// Ensure dirs.
-	if err := config.EnsureAmuxDirs(); err != nil {
+	if err := config.EnsureTowrDirs(); err != nil {
 		t.Fatal(err)
 	}
 	repoState := config.RepoStatePath(repoDir)
@@ -80,8 +80,8 @@ func TestSpawnLsLandCleanup(t *testing.T) {
 	if ws.Status != workspace.StatusReady {
 		t.Errorf("expected status READY, got %s", ws.Status)
 	}
-	if ws.Branch != "amux/test-feat" {
-		t.Errorf("expected branch amux/test-feat, got %s", ws.Branch)
+	if ws.Branch != "towr/test-feat" {
+		t.Errorf("expected branch towr/test-feat, got %s", ws.Branch)
 	}
 
 	// Verify worktree exists.

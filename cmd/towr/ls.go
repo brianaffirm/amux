@@ -29,7 +29,7 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 
 			if appErr != nil || allFlag {
 				// Outside repo or --all: show everything
-				reposDir := filepath.Join(config.AmuxHome(), "repos")
+				reposDir := filepath.Join(config.TowrHome(), "repos")
 				var err error
 				workspaces, err = store.ListAllWorkspaces(reposDir)
 				if err != nil {

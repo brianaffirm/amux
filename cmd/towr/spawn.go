@@ -229,10 +229,10 @@ func spawnNonRepo(cmd *cobra.Command, task, wsID, dirPath string, jsonFlag *bool
 	}
 
 	// Open a global store (not repo-scoped).
-	if err := config.EnsureAmuxDirs(); err != nil {
+	if err := config.EnsureTowrDirs(); err != nil {
 		return err
 	}
-	globalDBPath := filepath.Join(config.AmuxHome(), "global-state.db")
+	globalDBPath := filepath.Join(config.TowrHome(), "global-state.db")
 	s := store.NewSQLiteStore()
 	if err := s.Init(globalDBPath); err != nil {
 		return fmt.Errorf("init global store: %w", err)
@@ -265,7 +265,7 @@ func spawnNonRepo(cmd *cobra.Command, task, wsID, dirPath string, jsonFlag *bool
 	if _, lookupErr := lookupTmux(); lookupErr != nil {
 		term = terminal.NewHeadlessBackend()
 	} else {
-		term = terminal.NewTmuxBackend("amux")
+		term = terminal.NewTmuxBackend("towr")
 	}
 
 	if !term.IsHeadless() {
@@ -293,9 +293,9 @@ func spawnNonRepo(cmd *cobra.Command, task, wsID, dirPath string, jsonFlag *bool
 }
 
 // nextAutoID generates the next auto-increment workspace ID (ws-0001, ws-0002, ...).
-// Scans ~/.amux/repos/*/state.db for existing ws-NNNN IDs to find the next counter.
+// Scans ~/.towr/repos/*/state.db for existing ws-NNNN IDs to find the next counter.
 func nextAutoID() string {
-	reposDir := filepath.Join(config.AmuxHome(), "repos")
+	reposDir := filepath.Join(config.TowrHome(), "repos")
 	all, err := store.ListAllWorkspaces(reposDir)
 	if err != nil {
 		return "ws-0001"

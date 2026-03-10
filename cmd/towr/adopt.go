@@ -22,8 +22,8 @@ func newAdoptCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Com
 
 	cmd := &cobra.Command{
 		Use:   "adopt [path-or-branch]",
-		Short: "Adopt an existing worktree or branch as an amux workspace",
-		Long: `Register a pre-existing git worktree or branch as an amux workspace.
+		Short: "Adopt an existing worktree or branch as a towr workspace",
+		Long: `Register a pre-existing git worktree or branch as a towr workspace.
 With no arguments, adopts the current directory's branch.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -71,9 +71,9 @@ With no arguments, adopts the current directory's branch.`,
 			// Derive workspace ID.
 			wsID := idFlag
 			if wsID == "" {
-				// Strip amux/ prefix if present.
+				// Strip towr/ prefix if present.
 				name := branch
-				name = strings.TrimPrefix(name, "amux/")
+				name = strings.TrimPrefix(name, "towr/")
 				wsID = slugify(name)
 			}
 

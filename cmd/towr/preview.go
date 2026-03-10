@@ -125,14 +125,14 @@ func findCurrentWorkspace(app *appContext) (*store.Workspace, error) {
 
 // previewPaneID returns the tmux pane target for a workspace's preview pane.
 func previewPaneID(workspaceID string) string {
-	return "amux/" + workspaceID + ":preview"
+	return "towr/" + workspaceID + ":preview"
 }
 
 // showInPreviewPane creates a split pane that runs the content command.
 // The pane auto-closes when the command (less) exits — no lingering shell.
 // If a preview pane already exists, it's killed first.
 func showInPreviewPane(tmux *terminal.TmuxBackend, wsID, header, contentCmd string) error {
-	session := "amux/" + wsID
+	session := "towr/" + wsID
 	chatWindow := session + ":chat"
 
 	// Kill existing preview pane if present (pane 1).
@@ -165,7 +165,7 @@ func showInPreviewPane(tmux *terminal.TmuxBackend, wsID, header, contentCmd stri
 
 // closePreviewPane kills the preview pane for a workspace.
 func closePreviewPane(tmux *terminal.TmuxBackend, wsID string) error {
-	session := "amux/" + wsID
+	session := "towr/" + wsID
 	previewPane := session + ":chat.1"
 
 	killCmd := exec.Command("tmux", "kill-pane", "-t", previewPane)

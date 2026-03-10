@@ -13,34 +13,34 @@ import (
 func newShellHookCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shell-hook",
-		Short: "Print shell integration code for amux nudge",
-		Long: `Print shell hook code to integrate amux nudge into your prompt.
+		Short: "Print shell integration code for towr nudge",
+		Long: `Print shell hook code to integrate towr nudge into your prompt.
 Add to your shell config:
-  eval "$(amux shell-hook)"`,
+  eval "$(towr shell-hook)"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shell := filepath.Base(os.Getenv("SHELL"))
 
-			// Find amux binary path.
-			amuxBin, err := os.Executable()
+			// Find towr binary path.
+			towrBin, err := os.Executable()
 			if err != nil {
-				amuxBin = "amux"
+				towrBin = "towr"
 			}
 
 			switch shell {
 			case "zsh":
-				fmt.Printf(`# amux shell integration
-_amux_nudge() {
+				fmt.Printf(`# towr shell integration
+_towr_nudge() {
   %s _nudge 2>/dev/null
 }
-precmd_functions+=(_amux_nudge)
-`, amuxBin)
+precmd_functions+=(_towr_nudge)
+`, towrBin)
 			case "bash":
-				fmt.Printf(`# amux shell integration
-_amux_nudge() {
+				fmt.Printf(`# towr shell integration
+_towr_nudge() {
   %s _nudge 2>/dev/null
 }
-PROMPT_COMMAND="_amux_nudge${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
-`, amuxBin)
+PROMPT_COMMAND="_towr_nudge${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+`, towrBin)
 			default:
 				fmt.Fprintf(os.Stderr, "Unsupported shell: %s (supported: bash, zsh)\n", shell)
 			}
@@ -63,9 +63,9 @@ func newNudgeCmd() *cobra.Command {
 
 			result := workspace.CheckNudge(cwd)
 			if result.ShouldNudge {
-				// Check if this branch is already tracked by amux.
+				// Check if this branch is already tracked by towr.
 				// Quick check: see if there's a workspace with this branch.
-				if isTrackedByAmux(cwd, result.Branch) {
+				if isTrackedByTowr(cwd, result.Branch) {
 					return nil
 				}
 				fmt.Fprintln(os.Stderr, result.Message)
@@ -76,11 +76,11 @@ func newNudgeCmd() *cobra.Command {
 	return cmd
 }
 
-// isTrackedByAmux checks if a branch is already managed by amux.
-// Uses a fast path: check if branch starts with "amux/" or if a workspace exists.
-func isTrackedByAmux(cwd, branch string) bool {
-	if strings.HasPrefix(branch, "amux/") {
-		// amux-namespaced branches are likely tracked.
+// isTrackedByTowr checks if a branch is already managed by towr.
+// Uses a fast path: check if branch starts with "towr/" or if a workspace exists.
+func isTrackedByTowr(cwd, branch string) bool {
+	if strings.HasPrefix(branch, "towr/") {
+		// towr-namespaced branches are likely tracked.
 		// Quick heuristic — not perfect but fast.
 		return true
 	}
