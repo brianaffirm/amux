@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // PasteBuffer loads content into a tmux paste buffer and sends it to the workspace's chat window.
@@ -26,6 +27,9 @@ func (t *TmuxBackend) PasteBuffer(id, content string) error {
 	if err := t.tmuxRun("paste-buffer", "-b", "towr-dispatch", "-t", target+":chat"); err != nil {
 		return fmt.Errorf("paste-buffer: %w", err)
 	}
+	// Brief delay to let Claude's UI process the pasted text before sending Enter.
+	// Without this, Enter can arrive before the UI registers the paste content.
+	time.Sleep(500 * time.Millisecond)
 	if err := t.tmuxRun("send-keys", "-t", target+":chat", "C-m"); err != nil {
 		return fmt.Errorf("send enter: %w", err)
 	}
