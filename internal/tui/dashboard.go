@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brianho/amux/internal/git"
-	"github.com/brianho/amux/internal/store"
-	"github.com/brianho/amux/internal/workspace"
+	"github.com/brianaffirm/towr/internal/git"
+	"github.com/brianaffirm/towr/internal/store"
+	"github.com/brianaffirm/towr/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

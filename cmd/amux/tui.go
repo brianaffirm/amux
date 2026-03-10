@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/brianho/amux/internal/config"
-	"github.com/brianho/amux/internal/tui"
+	"github.com/brianaffirm/towr/internal/config"
+	"github.com/brianaffirm/towr/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )

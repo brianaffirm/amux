@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brianho/amux/internal/config"
-	"github.com/brianho/amux/internal/store"
-	"github.com/brianho/amux/internal/workspace"
+	"github.com/brianaffirm/towr/internal/config"
+	"github.com/brianaffirm/towr/internal/store"
+	"github.com/brianaffirm/towr/internal/workspace"
 )
 
 // TestSpawnLsLandCleanup is an integration test that exercises the full

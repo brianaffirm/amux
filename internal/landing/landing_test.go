@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brianho/amux/internal/git"
+	"github.com/brianaffirm/towr/internal/git"
 )
 
 // --- Mock implementations ---

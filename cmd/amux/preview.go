@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/brianho/amux/internal/git"
-	"github.com/brianho/amux/internal/store"
-	"github.com/brianho/amux/internal/terminal"
+	"github.com/brianaffirm/towr/internal/git"
+	"github.com/brianaffirm/towr/internal/store"
+	"github.com/brianaffirm/towr/internal/terminal"
 	"github.com/spf13/cobra"
 )
 

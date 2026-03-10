@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/brianho/amux/internal/workspace"
+	"github.com/brianaffirm/towr/internal/workspace"
 	"github.com/spf13/cobra"
 )
 

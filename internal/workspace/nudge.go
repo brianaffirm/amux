@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brianho/amux/internal/git"
+	"github.com/brianaffirm/towr/internal/git"
 )
 
 // NudgeResult describes whether the user should be nudged to adopt.

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/brianho/amux/internal/cli"
-	"github.com/brianho/amux/internal/store"
+	"github.com/brianaffirm/towr/internal/cli"
+	"github.com/brianaffirm/towr/internal/store"
 	"github.com/spf13/cobra"
 )
 

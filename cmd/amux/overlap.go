@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/brianho/amux/internal/cli"
-	"github.com/brianho/amux/internal/store"
-	"github.com/brianho/amux/internal/workspace"
+	"github.com/brianaffirm/towr/internal/cli"
+	"github.com/brianaffirm/towr/internal/store"
+	"github.com/brianaffirm/towr/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
