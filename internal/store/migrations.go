@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 const currentSchemaVersion = 2
@@ -93,10 +94,17 @@ func migrate(db *sql.DB) error {
 	}
 
 	if ver < 2 {
-		// ALTER TABLE is idempotent-safe: ignore "duplicate column" error for fresh v2 DBs.
-		_, _ = db.Exec(`ALTER TABLE workspaces ADD COLUMN last_activity TEXT`)
+		// Add last_activity column. Ignore "duplicate column" for fresh v2 DBs
+		// where schema_v1 already includes the column.
+		if _, err := db.Exec(`ALTER TABLE workspaces ADD COLUMN last_activity TEXT`); err != nil {
+			if !isDuplicateColumnErr(err) {
+				return fmt.Errorf("apply schema v2 (add last_activity): %w", err)
+			}
+		}
 		// Backfill last_activity from updated_at.
-		_, _ = db.Exec(`UPDATE workspaces SET last_activity = updated_at WHERE last_activity IS NULL`)
+		if _, err := db.Exec(`UPDATE workspaces SET last_activity = updated_at WHERE last_activity IS NULL`); err != nil {
+			return fmt.Errorf("apply schema v2 (backfill last_activity): %w", err)
+		}
 		if err := setSchemaVersion(db, 2); err != nil {
 			return fmt.Errorf("set schema version: %w", err)
 		}
@@ -114,4 +122,9 @@ func getSchemaVersion(db *sql.DB) (int, error) {
 func setSchemaVersion(db *sql.DB, ver int) error {
 	_, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", ver))
 	return err
+}
+
+// isDuplicateColumnErr returns true if the error is a SQLite "duplicate column" error.
+func isDuplicateColumnErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "duplicate column")
 }

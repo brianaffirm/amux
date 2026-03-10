@@ -119,9 +119,11 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 			table := cli.NewTablePrinter(os.Stdout, columns)
 			table.PrintHeader()
 
-			// Query health for each workspace (need store access).
+			// Query health for each workspace. Only available in repo-scoped mode
+			// because hook events are stored per-repo — querying from the wrong
+			// store would return incorrect results for cross-repo workspaces.
 			var healthMap map[string]string
-			if app != nil {
+			if app != nil && !showRepoColumn {
 				healthMap = make(map[string]string)
 				for _, ws := range workspaces {
 					healthMap[ws.ID] = app.store.LastHookResult(ws.RepoRoot, ws.ID)
