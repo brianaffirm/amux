@@ -467,6 +467,90 @@ func (s *SQLiteStore) LastHookResult(repoRoot, workspaceID string) string {
 	return "fail"
 }
 
+// ---------- Dispatch Queries ----------
+
+// latestEventByKind returns the most recent event matching the given kind,
+// repo root, and workspace ID.
+func (s *SQLiteStore) latestEventByKind(repoRoot, workspaceID, kind string) (*Event, error) {
+	var e Event
+	var ts string
+	var dataStr sql.NullString
+	var wsID, repo, runtime, actor sql.NullString
+
+	err := s.db.QueryRow(
+		`SELECT id, timestamp, kind, workspace_id, repo_root, runtime, actor, data
+		 FROM events
+		 WHERE repo_root = ? AND workspace_id = ? AND kind = ?
+		 ORDER BY timestamp DESC LIMIT 1`,
+		repoRoot, workspaceID, kind,
+	).Scan(&e.ID, &ts, &e.Kind, &wsID, &repo, &runtime, &actor, &dataStr)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("latest event by kind %s: %w", kind, err)
+	}
+
+	e.Timestamp, _ = time.Parse(time.RFC3339Nano, ts)
+	e.WorkspaceID = wsID.String
+	e.RepoRoot = repo.String
+	e.Runtime = runtime.String
+	e.Actor = actor.String
+
+	if dataStr.Valid && dataStr.String != "" {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(dataStr.String), &data); err == nil {
+			e.Data = data
+		}
+	}
+
+	return &e, nil
+}
+
+// LatestDispatch returns the most recent task.dispatched event for a workspace.
+func (s *SQLiteStore) LatestDispatch(repoRoot, workspaceID string) (*Event, error) {
+	return s.latestEventByKind(repoRoot, workspaceID, EventTaskDispatched)
+}
+
+// LatestTaskEvent returns the most recent task.* event matching a specific dispatch ID.
+// The dispatch ID is expected in the event's data JSON as {"dispatch_id": "..."}.
+func (s *SQLiteStore) LatestTaskEvent(repoRoot, workspaceID, dispatchID string) (*Event, error) {
+	var e Event
+	var ts string
+	var dataStr sql.NullString
+	var wsID, repo, runtime, actor sql.NullString
+
+	err := s.db.QueryRow(
+		`SELECT id, timestamp, kind, workspace_id, repo_root, runtime, actor, data
+		 FROM events
+		 WHERE repo_root = ? AND workspace_id = ? AND kind LIKE 'task.%'
+		   AND json_extract(data, '$.dispatch_id') = ?
+		 ORDER BY timestamp DESC LIMIT 1`,
+		repoRoot, workspaceID, dispatchID,
+	).Scan(&e.ID, &ts, &e.Kind, &wsID, &repo, &runtime, &actor, &dataStr)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("latest task event: %w", err)
+	}
+
+	e.Timestamp, _ = time.Parse(time.RFC3339Nano, ts)
+	e.WorkspaceID = wsID.String
+	e.RepoRoot = repo.String
+	e.Runtime = runtime.String
+	e.Actor = actor.String
+
+	if dataStr.Valid && dataStr.String != "" {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(dataStr.String), &data); err == nil {
+			e.Data = data
+		}
+	}
+
+	return &e, nil
+}
+
 // ---------- Queue ----------
 
 // EnqueueApproval adds an item to the approval queue.
