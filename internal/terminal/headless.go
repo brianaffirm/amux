@@ -37,6 +37,10 @@ func (h *HeadlessBackend) SendKeys(id, keys string) error {
 	return nil
 }
 
+func (h *HeadlessBackend) PasteBuffer(id, content string) error {
+	return fmt.Errorf("paste-buffer not supported in headless mode")
+}
+
 func (h *HeadlessBackend) IsHeadless() bool {
 	return true
 }

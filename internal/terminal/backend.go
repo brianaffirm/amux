@@ -22,6 +22,8 @@ type Backend interface {
 	IsPaneAlive(id string) (bool, error)
 	// SendKeys sends keystrokes to a pane (e.g., "C-c" for interrupt).
 	SendKeys(id, keys string) error
+	// PasteBuffer loads content into a tmux buffer and pastes it into the workspace pane.
+	PasteBuffer(id, content string) error
 	// IsHeadless returns true if the backend cannot manage terminal sessions.
 	IsHeadless() bool
 }
