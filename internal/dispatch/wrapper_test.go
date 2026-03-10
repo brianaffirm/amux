@@ -21,7 +21,7 @@ func TestBuildWrapper(t *testing.T) {
 		{"heartbeat touch", "touch \"$COMMS_DIR/heartbeat\""},
 		{"heartbeat sleep", "sleep 30"},
 		{"trap", "trap"},
-		{"report started", "towr report --dispatch-id \"$DISPATCH_ID\" --status started"},
+		{"report started", "towr report \"$WS_ID\" --dispatch-id \"$DISPATCH_ID\" --status started"},
 		{"claude call", "claude -p"},
 		{"output format", "--output-format json"},
 		{"report success", "--status success"},
