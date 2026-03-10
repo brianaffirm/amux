@@ -282,8 +282,12 @@ func runInteractiveWait(app *appContext, wsID, dispatchID string, timeout time.D
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
+	// We must see Claude enter a working/blocked state before accepting idle as "done".
+	// Otherwise we'll detect the prompt echo (❯ <user input>) as idle immediately.
+	sawWorking := false
+
 	// Give Claude a moment to start processing before first poll.
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	for {
 		captured, err := app.term.CapturePane(wsID, 200)
@@ -299,7 +303,10 @@ func runInteractiveWait(app *appContext, wsID, dispatchID string, timeout time.D
 		}
 
 		state := dispatch.DetectPaneState(captured)
-		if state == dispatch.PaneIdle {
+		if state == dispatch.PaneWorking || state == dispatch.PaneBlocked {
+			sawWorking = true
+		}
+		if state == dispatch.PaneIdle && sawWorking {
 			// Claude finished — extract response.
 			response := dispatch.ExtractLastResponse(captured)
 
@@ -345,7 +352,7 @@ func runInteractiveWait(app *appContext, wsID, dispatchID string, timeout time.D
 		}
 
 		// Check if Claude is blocked on a permission dialog.
-		if state == dispatch.PaneBlocked {
+		if state == dispatch.PaneBlocked && sawWorking {
 			dialogCtx := dispatch.ExtractDialogContext(captured)
 			if *jsonFlag {
 				return cli.PrintJSON(map[string]interface{}{
