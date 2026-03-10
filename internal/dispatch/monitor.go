@@ -8,6 +8,7 @@ type PaneState string
 const (
 	PaneWorking PaneState = "working" // Claude is generating output
 	PaneIdle    PaneState = "idle"    // Claude shows ❯ prompt, finished this turn
+	PaneBlocked PaneState = "blocked" // Claude shows a permission/confirmation dialog
 	PaneEmpty   PaneState = "empty"   // Pane has no Claude output (not launched yet)
 )
 
@@ -33,7 +34,7 @@ func DetectPaneState(capturedOutput string) PaneState {
 		checked++
 		hasContent = true
 		if isDialogIndicator(line) {
-			return PaneWorking
+			return PaneBlocked
 		}
 	}
 
@@ -87,6 +88,26 @@ func isIdlePrompt(line string) bool {
 		return false
 	}
 	return true
+}
+
+// ExtractDialogContext extracts the permission dialog question from capture-pane output.
+// Looks for lines containing "Do you want to" or similar permission text.
+func ExtractDialogContext(capturedOutput string) string {
+	lines := strings.Split(capturedOutput, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "Do you want to") {
+			return trimmed
+		}
+	}
+	// Fallback: look for any line with a question mark
+	for i := len(lines) - 1; i >= 0; i-- {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasSuffix(trimmed, "?") {
+			return trimmed
+		}
+	}
+	return "permission dialog active"
 }
 
 // ExtractLastResponse extracts text between the last two ❯ prompts,

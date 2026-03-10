@@ -219,7 +219,7 @@ func runInteractiveDispatch(app *appContext, sw *store.Workspace, wsID, dispatch
 			}
 
 			// Handle the workspace trust dialog: "Yes, I trust this folder" is option 1 (default).
-			if !dialogHandled && strings.Contains(captured, "Yes, I trust this folder") {
+			if !dialogHandled && strings.Contains(captured, "Yes, I trust this folder") && !strings.Contains(captured, "No, exit") {
 				_ = app.term.SendKeys(wsID, "Enter")
 				dialogHandled = true
 				continue
@@ -341,6 +341,22 @@ func runInteractiveWait(app *appContext, wsID, dispatchID string, timeout time.D
 				})
 			}
 			fmt.Printf("✓ %s %s: %s\n", wsID, dispatchID, summary)
+			return nil
+		}
+
+		// Check if Claude is blocked on a permission dialog.
+		if state == dispatch.PaneBlocked {
+			dialogCtx := dispatch.ExtractDialogContext(captured)
+			if *jsonFlag {
+				return cli.PrintJSON(map[string]interface{}{
+					"workspace_id": wsID,
+					"dispatch_id":  dispatchID,
+					"status":       "blocked",
+					"dialog":       dialogCtx,
+					"hint":         "towr send " + wsID + " --approve",
+				})
+			}
+			fmt.Fprintf(os.Stderr, "⚠ %s %s: %s\n  Run: towr send %s --approve\n", wsID, dispatchID, dialogCtx, wsID)
 			return nil
 		}
 
