@@ -25,6 +25,7 @@ func newLandCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 		chainFlag   []string
 		forceFlag   bool
 		noHooksFlag bool
+		reasonFlag  string
 	)
 
 	cmd := &cobra.Command{
@@ -118,6 +119,7 @@ func newLandCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 			lOps := &landingOpsAdapter{mgr: app.manager}
 			hookCfg := &landingHookConfig{cfg: app.cfg}
 			pipeline := landing.NewLandingPipeline(lStore, lOps, hookCfg, 5*time.Minute)
+			pipeline.SetEventEmitter(&landingEventEmitter{s: app.store, repoRoot: app.repoRoot})
 
 			strategy := landing.StrategyRebaseFF
 			if squashFlag {
@@ -131,6 +133,7 @@ func newLandCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 				Push:     pushFlag,
 				PR:       prFlag,
 				NoHooks:  noHooksFlag,
+				Reason:   reasonFlag,
 			}
 
 			// Chain mode.
@@ -250,6 +253,7 @@ func newLandCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 	cmd.Flags().StringSliceVar(&chainFlag, "chain", nil, "land multiple workspaces sequentially")
 	cmd.Flags().BoolVar(&forceFlag, "force", false, "override status check")
 	cmd.Flags().BoolVar(&noHooksFlag, "no-hooks", false, "skip hooks")
+	cmd.Flags().StringVar(&reasonFlag, "reason", "", "audit reason for --force or --no-hooks bypass")
 
 	return cmd
 }
@@ -371,6 +375,29 @@ func (h *landingHookConfig) GetHook(hookType landing.HookType) string {
 	default:
 		return ""
 	}
+}
+
+// landingEventEmitter adapts store.SQLiteStore to landing.EventEmitter.
+type landingEventEmitter struct {
+	s        *store.SQLiteStore
+	repoRoot string
+}
+
+func (e *landingEventEmitter) EmitBypassEvent(kind, workspaceID, repoRoot, actor, reason string, data map[string]interface{}) error {
+	if data == nil {
+		data = make(map[string]interface{})
+	}
+	if reason != "" {
+		data["reason"] = reason
+	}
+	data["actor"] = actor
+	return e.s.EmitEvent(store.Event{
+		Kind:        kind,
+		WorkspaceID: workspaceID,
+		RepoRoot:    repoRoot,
+		Actor:       actor,
+		Data:        data,
+	})
 }
 
 // isInsideDir reports whether child is inside or equal to parent.

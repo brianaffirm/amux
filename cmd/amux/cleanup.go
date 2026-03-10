@@ -23,6 +23,7 @@ func newCleanupCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.C
 		mergedFlag bool
 		dryRunFlag bool
 		forceFlag  bool
+		reasonFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -169,6 +170,23 @@ func newCleanupCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.C
 				}
 			}
 
+			// Emit audit event for forced cleanup.
+			if forceFlag && app != nil {
+				data := map[string]interface{}{
+					"actor": os.Getenv("USER"),
+				}
+				if reasonFlag != "" {
+					data["reason"] = reasonFlag
+				}
+				_ = app.store.EmitEvent(store.Event{
+					Kind:        store.EventCleanupForced,
+					WorkspaceID: wsID,
+					RepoRoot:    app.repoRoot,
+					Actor:       os.Getenv("USER"),
+					Data:        data,
+				})
+			}
+
 			// Destroy tmux pane if it exists.
 			_ = term.DestroyPane(wsID)
 
@@ -193,6 +211,7 @@ func newCleanupCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.C
 	cmd.Flags().BoolVar(&mergedFlag, "merged", false, "clean up workspaces whose branches have been merged")
 	cmd.Flags().BoolVar(&dryRunFlag, "dry-run", false, "preview without executing")
 	cmd.Flags().BoolVar(&forceFlag, "force", false, "skip confirmation for dirty worktrees")
+	cmd.Flags().StringVar(&reasonFlag, "reason", "", "audit reason for --force bypass")
 
 	return cmd
 }

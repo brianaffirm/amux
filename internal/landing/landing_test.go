@@ -857,6 +857,173 @@ func TestLandPRMode(t *testing.T) {
 	}
 }
 
+// --- Mock event emitter ---
+
+type mockEventEmitter struct {
+	events []emittedEvent
+}
+
+type emittedEvent struct {
+	kind        string
+	workspaceID string
+	repoRoot    string
+	actor       string
+	reason      string
+	data        map[string]interface{}
+}
+
+func (e *mockEventEmitter) EmitBypassEvent(kind, workspaceID, repoRoot, actor, reason string, data map[string]interface{}) error {
+	e.events = append(e.events, emittedEvent{
+		kind:        kind,
+		workspaceID: workspaceID,
+		repoRoot:    repoRoot,
+		actor:       actor,
+		reason:      reason,
+		data:        data,
+	})
+	return nil
+}
+
+// --- Audit bypass event tests ---
+
+func TestLandForceEmitsAuditEvent(t *testing.T) {
+	repoDir := initTestRepo(t)
+	base := baseBranch(t, repoDir)
+	wtDir := createWorktree(t, repoDir, "force-test")
+	writeFile(t, filepath.Join(wtDir, "new.txt"), "data\n")
+	runGit(t, wtDir, "add", ".")
+	runGit(t, wtDir, "commit", "-m", "change")
+
+	store := newMockStore()
+	store.AddWorkspace(&Workspace{
+		ID: "force-test", RepoRoot: repoDir, BaseBranch: base,
+		Branch: "force-test", WorktreePath: wtDir, Status: StatusBlocked,
+	})
+
+	emitter := &mockEventEmitter{}
+	pipeline := NewLandingPipeline(store, &mockOps{}, newMockHookConfig(), 10*time.Second)
+	pipeline.SetEventEmitter(emitter)
+
+	_, err := pipeline.Land("force-test", LandOpts{Force: true})
+	if err != nil {
+		t.Fatalf("land failed: %v", err)
+	}
+
+	if len(emitter.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(emitter.events))
+	}
+	ev := emitter.events[0]
+	if ev.kind != "workspace.landing.forced" {
+		t.Errorf("expected workspace.landing.forced, got %s", ev.kind)
+	}
+	if ev.workspaceID != "force-test" {
+		t.Errorf("expected workspace ID force-test, got %s", ev.workspaceID)
+	}
+	if ev.data["original_status"] != "BLOCKED" {
+		t.Errorf("expected original_status BLOCKED, got %v", ev.data["original_status"])
+	}
+	if ev.data["skipped_status_check"] != true {
+		t.Errorf("expected skipped_status_check true")
+	}
+}
+
+func TestLandNoHooksEmitsAuditEvent(t *testing.T) {
+	repoDir := initTestRepo(t)
+	base := baseBranch(t, repoDir)
+	wtDir := createWorktree(t, repoDir, "nohooks-test")
+	writeFile(t, filepath.Join(wtDir, "new.txt"), "data\n")
+	runGit(t, wtDir, "add", ".")
+	runGit(t, wtDir, "commit", "-m", "change")
+
+	store := newMockStore()
+	store.AddWorkspace(&Workspace{
+		ID: "nohooks-test", RepoRoot: repoDir, BaseBranch: base,
+		Branch: "nohooks-test", WorktreePath: wtDir, Status: StatusReady,
+	})
+
+	emitter := &mockEventEmitter{}
+	hookCfg := newMockHookConfig()
+	hookCfg.hooks[HookPreLand] = "echo should be skipped"
+	pipeline := NewLandingPipeline(store, &mockOps{}, hookCfg, 10*time.Second)
+	pipeline.SetEventEmitter(emitter)
+
+	_, err := pipeline.Land("nohooks-test", LandOpts{NoHooks: true})
+	if err != nil {
+		t.Fatalf("land failed: %v", err)
+	}
+
+	if len(emitter.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(emitter.events))
+	}
+	ev := emitter.events[0]
+	if ev.kind != "workspace.landing.hooks_skipped" {
+		t.Errorf("expected workspace.landing.hooks_skipped, got %s", ev.kind)
+	}
+	hooks, ok := ev.data["skipped_hooks"].([]string)
+	if !ok || len(hooks) != 2 {
+		t.Errorf("expected skipped_hooks [pre-land, post-land], got %v", ev.data["skipped_hooks"])
+	}
+}
+
+func TestLandForceWithReasonIncludesReason(t *testing.T) {
+	repoDir := initTestRepo(t)
+	base := baseBranch(t, repoDir)
+	wtDir := createWorktree(t, repoDir, "reason-test")
+	writeFile(t, filepath.Join(wtDir, "new.txt"), "data\n")
+	runGit(t, wtDir, "add", ".")
+	runGit(t, wtDir, "commit", "-m", "change")
+
+	store := newMockStore()
+	store.AddWorkspace(&Workspace{
+		ID: "reason-test", RepoRoot: repoDir, BaseBranch: base,
+		Branch: "reason-test", WorktreePath: wtDir, Status: StatusBlocked,
+	})
+
+	emitter := &mockEventEmitter{}
+	pipeline := NewLandingPipeline(store, &mockOps{}, newMockHookConfig(), 10*time.Second)
+	pipeline.SetEventEmitter(emitter)
+
+	_, err := pipeline.Land("reason-test", LandOpts{Force: true, Reason: "hotfix for customer X"})
+	if err != nil {
+		t.Fatalf("land failed: %v", err)
+	}
+
+	if len(emitter.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(emitter.events))
+	}
+	if emitter.events[0].reason != "hotfix for customer X" {
+		t.Errorf("expected reason 'hotfix for customer X', got %q", emitter.events[0].reason)
+	}
+}
+
+func TestLandNoBypassNoAuditEvent(t *testing.T) {
+	repoDir := initTestRepo(t)
+	base := baseBranch(t, repoDir)
+	wtDir := createWorktree(t, repoDir, "normal-test")
+	writeFile(t, filepath.Join(wtDir, "new.txt"), "data\n")
+	runGit(t, wtDir, "add", ".")
+	runGit(t, wtDir, "commit", "-m", "change")
+
+	store := newMockStore()
+	store.AddWorkspace(&Workspace{
+		ID: "normal-test", RepoRoot: repoDir, BaseBranch: base,
+		Branch: "normal-test", WorktreePath: wtDir, Status: StatusReady,
+	})
+
+	emitter := &mockEventEmitter{}
+	pipeline := NewLandingPipeline(store, &mockOps{}, newMockHookConfig(), 10*time.Second)
+	pipeline.SetEventEmitter(emitter)
+
+	_, err := pipeline.Land("normal-test", LandOpts{})
+	if err != nil {
+		t.Fatalf("land failed: %v", err)
+	}
+
+	if len(emitter.events) != 0 {
+		t.Errorf("expected 0 audit events for normal land, got %d", len(emitter.events))
+	}
+}
+
 func init() {
 	// Ensure git is available for tests
 	if _, err := exec.LookPath("git"); err != nil {
