@@ -132,6 +132,7 @@ func run() error {
 		newNudgeCmd(),
 		newOverlapCmd(initApp, &jsonFlag),
 		newDispatchCmd(initApp, &jsonFlag),
+		newSendCmd(initApp, &jsonFlag),
 		newWaitCmd(initApp, &jsonFlag),
 		newReportCmd(initApp, &jsonFlag),
 		newPromoteCmd(initApp, &jsonFlag),
