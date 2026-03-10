@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 1
+const currentSchemaVersion = 2
 
 // schema_v1 creates the initial database schema.
 const schema_v1 = `
@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     terminal_target TEXT,
     created_at TEXT,
     updated_at TEXT,
+    last_activity TEXT,
     PRIMARY KEY (id, repo_root)
 );
 
@@ -80,7 +81,8 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec(schema_v1); err != nil {
 			return fmt.Errorf("apply schema v1: %w", err)
 		}
-		if err := setSchemaVersion(db, 1); err != nil {
+		// Fresh database: schema_v1 already includes all columns through v2.
+		if err := setSchemaVersion(db, currentSchemaVersion); err != nil {
 			return fmt.Errorf("set schema version: %w", err)
 		}
 		return nil
@@ -90,8 +92,15 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("database schema version %d is newer than supported version %d", ver, currentSchemaVersion)
 	}
 
-	// Future migrations go here:
-	// if ver < 2 { migrate_v1_to_v2(db); ver = 2 }
+	if ver < 2 {
+		// ALTER TABLE is idempotent-safe: ignore "duplicate column" error for fresh v2 DBs.
+		_, _ = db.Exec(`ALTER TABLE workspaces ADD COLUMN last_activity TEXT`)
+		// Backfill last_activity from updated_at.
+		_, _ = db.Exec(`UPDATE workspaces SET last_activity = updated_at WHERE last_activity IS NULL`)
+		if err := setSchemaVersion(db, 2); err != nil {
+			return fmt.Errorf("set schema version: %w", err)
+		}
+	}
 
 	return nil
 }
