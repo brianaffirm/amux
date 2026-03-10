@@ -46,6 +46,12 @@ func newWaitCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comm
 				if dispID == "" {
 					return fmt.Errorf("dispatch event missing dispatch_id")
 				}
+
+				// Check dispatch mode to decide polling strategy.
+				mode, _ := latestDisp.Data["mode"].(string)
+				if mode == "interactive" {
+					return runInteractiveWait(app, wsID, dispID, timeoutFlag, jsonFlag)
+				}
 				return runWait(app, app.repoRoot, wsID, dispID, timeoutFlag, jsonFlag)
 			}
 
