@@ -289,6 +289,25 @@ func (r *appRuntime) GetWorktreePath(wsID string) string {
 	return sw.WorktreePath
 }
 
+func (r *appRuntime) MergeDeps(wsID string, depIDs []string) error {
+	wtPath := r.GetWorktreePath(wsID)
+	if wtPath == "" {
+		return fmt.Errorf("no worktree path for %s", wsID)
+	}
+
+	for _, dep := range depIDs {
+		// Each dependency has a branch named towr/<dep>
+		branch := "towr/" + dep
+		mergeCmd := exec.Command("git", "-C", wtPath, "merge", branch, "--no-edit", "-m",
+			fmt.Sprintf("merge dependency %s into %s", dep, wsID))
+		out, err := mergeCmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("merge %s: %s: %w", branch, strings.TrimSpace(string(out)), err)
+		}
+	}
+	return nil
+}
+
 func (r *appRuntime) AutoCommit(wsID string) error {
 	wtPath := r.GetWorktreePath(wsID)
 	if wtPath == "" {
