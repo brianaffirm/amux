@@ -138,6 +138,52 @@ towr land cache
 
 The `--agent` flag tags the workspace with the runtime identifier, tracked in the audit log. `towr preview --diff` pushes diffs into a tmux split pane so agents can see changes without switching context.
 
+## Dispatch orchestration
+
+Use one "master" Claude Code session to coordinate multiple child sessions across workspaces. The master dispatches tasks, monitors progress, approves permissions, and sequences dependent work.
+
+```bash
+# Spawn workspaces
+towr spawn "auth middleware" --id auth
+towr spawn "billing service" --id billing
+
+# Dispatch tasks (interactive mode — launches Claude REPL in each tmux session)
+towr dispatch auth "Implement JWT middleware in internal/auth/jwt.go"
+towr dispatch billing "Add Stripe webhook handler"
+
+# Check progress
+towr ls
+# ID        STATUS    TASK          DIFF
+# auth      RUNNING   d-0001 ▶    +0/-0
+# billing   RUNNING   d-0001 ▶    +0/-0
+
+# Wait for a workspace — surfaces permission dialogs
+towr wait auth
+# ⚠ auth d-0001: Do you want to create jwt.go?
+#   Run: towr send auth --approve
+
+# Approve and continue waiting
+towr send auth --approve
+towr wait auth
+# ✓ auth d-0001: Created jwt.go with middleware...
+
+# Send follow-up to a running session
+towr send auth "Now add unit tests for the JWT middleware" --wait
+
+# Headless mode for fully autonomous tasks (no permission prompts)
+towr dispatch billing "refactor handlers" --headless
+```
+
+| Command | Description |
+|---------|-------------|
+| `towr dispatch <id> "prompt"` | Send task to workspace (interactive default) |
+| `towr dispatch <id> "prompt" --headless` | Autonomous mode via `claude -p` |
+| `towr dispatch <id> "prompt" --wait` | Block until task completes or needs approval |
+| `towr send <id> "message"` | Send follow-up to interactive session |
+| `towr send <id> --approve` | Approve a permission dialog |
+| `towr wait <id>` | Wait for current task (`--any`/`--all` for multi-workspace) |
+| `towr promote <id>` | Attach to tmux session for hands-on debugging |
+
 ## TUI Dashboard
 
 Run `towr` with no arguments for an interactive dashboard:
