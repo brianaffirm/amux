@@ -5,7 +5,36 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
+
+// PasteBuffer loads content into a tmux paste buffer and sends it to the workspace's chat window.
+func (t *TmuxBackend) PasteBuffer(id, content string) error {
+	target := t.sessionName(id)
+	tmpFile, err := os.CreateTemp("", "towr-paste-*.sh")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	if _, err := tmpFile.WriteString(content); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	tmpFile.Close()
+	if err := t.tmuxRun("load-buffer", "-b", "towr-dispatch", tmpFile.Name()); err != nil {
+		return fmt.Errorf("load-buffer: %w", err)
+	}
+	if err := t.tmuxRun("paste-buffer", "-b", "towr-dispatch", "-t", target+":chat"); err != nil {
+		return fmt.Errorf("paste-buffer: %w", err)
+	}
+	// Brief delay to let Claude's UI process the pasted text before sending Enter.
+	// Without this, Enter can arrive before the UI registers the paste content.
+	time.Sleep(500 * time.Millisecond)
+	if err := t.tmuxRun("send-keys", "-t", target+":chat", "C-m"); err != nil {
+		return fmt.Errorf("send enter: %w", err)
+	}
+	return nil
+}
 
 // TmuxBackend implements Backend using tmux.
 // Each workspace gets its own tmux session named Prefix/<id>.
@@ -142,6 +171,17 @@ func (t *TmuxBackend) IsPaneAlive(id string) (bool, error) {
 		return false, nil // session doesn't exist
 	}
 	return true, nil
+}
+
+// CapturePane captures the last N lines from the workspace's chat window.
+func (t *TmuxBackend) CapturePane(id string, lines int) (string, error) {
+	session := t.sessionName(id)
+	cmd := exec.Command("tmux", "capture-pane", "-t", session+":chat", "-p", "-S", fmt.Sprintf("-%d", lines))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("capture-pane: %w", err)
+	}
+	return string(out), nil
 }
 
 func (t *TmuxBackend) IsHeadless() bool {

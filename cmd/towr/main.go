@@ -131,6 +131,11 @@ func run() error {
 		newShellHookCmd(),
 		newNudgeCmd(),
 		newOverlapCmd(initApp, &jsonFlag),
+		newDispatchCmd(initApp, &jsonFlag),
+		newSendCmd(initApp, &jsonFlag),
+		newWaitCmd(initApp, &jsonFlag),
+		newReportCmd(initApp, &jsonFlag),
+		newPromoteCmd(initApp, &jsonFlag),
 	)
 
 	// If no subcommand was provided, launch the TUI dashboard.
