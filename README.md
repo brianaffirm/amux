@@ -218,11 +218,36 @@ towr send auth "Now add unit tests for the JWT middleware" --wait
 towr dispatch billing "refactor handlers" --headless
 ```
 
+### Autonomous monitoring
+
+Instead of manually waiting and approving each workspace, `towr watch` monitors all workspaces and reacts automatically:
+
+```bash
+# Dispatch tasks, then let watch handle the rest
+towr dispatch auth "implement JWT middleware"
+towr dispatch billing "add Stripe webhooks"
+towr dispatch tests "write integration tests"
+
+# Monitor all workspaces, auto-approve permission dialogs
+towr watch --auto-approve
+# [19:30:15] Watching 3 workspaces (poll: 10s, auto-approve: on)
+# [19:30:25] ▶ auth: working
+# [19:30:35] ⚠ auth: permission dialog — "Do you want to create jwt.go?"
+# [19:30:35] ✓ auth: auto-approved
+# [19:30:55] ✓ auth d-0001: completed — "Created jwt.go with middleware..."
+# [19:31:25] ✓ tests d-0001: completed
+# [19:31:25] All workspaces idle.
+```
+
+The overnight workflow: dispatch tasks, run `towr watch --auto-approve`, go to sleep. Morning: check the output.
+
 | Command | Description |
 |---------|-------------|
 | `towr dispatch <id> "prompt"` | Send task to workspace (interactive default) |
 | `towr dispatch <id> "prompt" --headless` | Autonomous mode via `claude -p` |
 | `towr dispatch <id> "prompt" --wait` | Block until task completes or needs approval |
+| `towr watch` | Monitor all workspaces, react to state changes |
+| `towr watch --auto-approve` | Same, but auto-approve permission dialogs |
 | `towr send <id> "message"` | Send follow-up to interactive session |
 | `towr send <id> --approve` | Approve a permission dialog |
 | `towr wait <id>` | Wait for current task (`--any`/`--all` for multi-workspace) |
