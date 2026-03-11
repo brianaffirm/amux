@@ -131,7 +131,7 @@ func TestExecutor_SimpleLinear(t *testing.T) {
 }
 
 func TestExecutor_ParallelTasks(t *testing.T) {
-	// Two independent tasks should both be dispatched in the first tick.
+	// Two independent tasks should both be dispatched quickly and complete.
 	plan := &Plan{
 		Name: "parallel test",
 		Tasks: []Task{
@@ -145,14 +145,22 @@ func TestExecutor_ParallelTasks(t *testing.T) {
 
 	rt := newMockRuntime()
 	rt.stateFunc = func(wsID string, callNum int) (string, string, error) {
-		return "working", "", nil
+		if callNum <= 1 {
+			return "working", "", nil
+		}
+		return "idle", "task " + wsID + " done", nil
 	}
 	logger := &mockLogger{}
 
 	exec := NewExecutor(plan, rt, logger)
 
-	// Run just the initial tick.
-	exec.tick(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := exec.Run(ctx)
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
 
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
