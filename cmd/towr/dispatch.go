@@ -215,14 +215,20 @@ func runInteractiveDispatch(app *appContext, sw *store.Workspace, wsID, dispatch
 
 	paneState := dispatch.DetectPaneState(captured)
 	if paneState != dispatch.PaneIdle {
+		// Acquire launch lock to prevent concurrent Claude startups.
+		unlock, err := dispatch.AcquireLaunchLock()
+		if err != nil {
+			return fmt.Errorf("acquire launch lock: %w", err)
+		}
+
 		// Claude not running or not idle — launch it.
 		if err := app.term.PasteBuffer(wsID, "unset CLAUDECODE && claude"); err != nil {
+			unlock()
 			return fmt.Errorf("launch claude: %w", err)
 		}
 
 		// Wait for Claude to start. Handle trust/permission dialogs.
 		started := false
-		dialogHandled := false
 		for i := 0; i < 40; i++ { // up to ~60 seconds
 			time.Sleep(1500 * time.Millisecond)
 			captured, err = app.term.CapturePane(wsID, 50)
@@ -230,10 +236,10 @@ func runInteractiveDispatch(app *appContext, sw *store.Workspace, wsID, dispatch
 				continue
 			}
 
-			// Handle the workspace trust dialog: "Yes, I trust this folder" is option 1 (default).
-			if !dialogHandled && strings.Contains(captured, "Yes, I trust this folder") && !strings.Contains(captured, "No, exit") {
+			// Handle any dialog during startup by pressing Enter.
+			if strings.Contains(captured, "Enter to confirm") {
 				_ = app.term.SendKeys(wsID, "Enter")
-				dialogHandled = true
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
@@ -242,6 +248,7 @@ func runInteractiveDispatch(app *appContext, sw *store.Workspace, wsID, dispatch
 				break
 			}
 		}
+		unlock()
 		if !started {
 			return fmt.Errorf("timed out waiting for Claude to start in workspace %q", wsID)
 		}
