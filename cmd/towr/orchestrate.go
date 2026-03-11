@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -286,6 +287,31 @@ func (r *appRuntime) GetWorktreePath(wsID string) string {
 		return ""
 	}
 	return sw.WorktreePath
+}
+
+func (r *appRuntime) AutoCommit(wsID string) error {
+	wtPath := r.GetWorktreePath(wsID)
+	if wtPath == "" {
+		return fmt.Errorf("no worktree path for %s", wsID)
+	}
+	// Check if there are uncommitted changes.
+	cmd := exec.Command("git", "-C", wtPath, "status", "--porcelain")
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("git status: %w", err)
+	}
+	if len(strings.TrimSpace(string(out))) == 0 {
+		return nil // nothing to commit
+	}
+	// Stage and commit everything.
+	if err := exec.Command("git", "-C", wtPath, "add", "-A").Run(); err != nil {
+		return fmt.Errorf("git add: %w", err)
+	}
+	commitCmd := exec.Command("git", "-C", wtPath, "commit", "-m", fmt.Sprintf("feat(%s): auto-commit from towr orchestrate", wsID))
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git commit: %s: %w", string(out), err)
+	}
+	return nil
 }
 
 func (r *appRuntime) EmitEvent(event store.Event) error {

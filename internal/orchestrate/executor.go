@@ -36,6 +36,8 @@ type Runtime interface {
 	SendApprove(wsID string) error
 	// GetWorktreePath returns the worktree path for a workspace.
 	GetWorktreePath(wsID string) string
+	// AutoCommit commits any uncommitted files in the workspace's worktree.
+	AutoCommit(wsID string) error
 	// EmitEvent records an event in the store.
 	EmitEvent(event store.Event) error
 }
@@ -232,11 +234,12 @@ func (e *Executor) spawnAndDispatch(task *Task) {
 		return
 	}
 
-	// Build enhanced prompt with dependency context.
+	// Build enhanced prompt with dependency context and commit instruction.
 	prompt := task.Prompt
 	if depInfo != "" {
-		prompt = task.Prompt + "\n\nContext from completed tasks:\n" + depInfo
+		prompt += "\n\nContext from completed tasks:\n" + depInfo
 	}
+	prompt += "\n\nIMPORTANT: When you are done, git add and commit all your changes with a descriptive commit message. Do not leave uncommitted files."
 
 	// Dispatch prompt.
 	dispID, err := e.runtime.DispatchPrompt(task.ID, prompt)
@@ -294,7 +297,10 @@ func (e *Executor) checkTask(task *Task) {
 			// Haven't seen it working yet — don't treat idle as completed.
 			return
 		}
-		// Task completed.
+		// Task completed — auto-commit any uncommitted work.
+		if err := e.runtime.AutoCommit(task.ID); err != nil {
+			e.logger.Log("\u26a0 %s: auto-commit failed — %v", task.ID, err)
+		}
 		e.states[task.ID] = TaskCompleted
 		e.results[task.ID] = summary
 		dispID := e.dispatchIDs[task.ID]

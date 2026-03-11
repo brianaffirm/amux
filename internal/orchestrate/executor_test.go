@@ -69,6 +69,10 @@ func (m *mockRuntime) GetWorktreePath(wsID string) string {
 	return "/tmp/test/" + wsID
 }
 
+func (m *mockRuntime) AutoCommit(wsID string) error {
+	return nil
+}
+
 func (m *mockRuntime) EmitEvent(event store.Event) error {
 	return nil
 }
