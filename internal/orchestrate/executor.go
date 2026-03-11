@@ -129,7 +129,7 @@ func (e *Executor) Run(ctx context.Context) error {
 	if err := e.tick(ctx); err != nil {
 		return err
 	}
-	if e.done {
+	if e.isDone() {
 		return e.finalize()
 	}
 
@@ -143,7 +143,7 @@ func (e *Executor) Run(ctx context.Context) error {
 			if err := e.tick(ctx); err != nil {
 				return err
 			}
-			if e.done {
+			if e.isDone() {
 				return e.finalize()
 			}
 		}
@@ -181,6 +181,12 @@ func (e *Executor) tick(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (e *Executor) isDone() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.done
 }
 
 func (e *Executor) allDepsCompleted(task *Task) bool {
