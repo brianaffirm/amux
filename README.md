@@ -276,7 +276,11 @@ towr orchestrate plan.yaml
 # Plan "build todo app" completed: 4/4 tasks succeeded.
 ```
 
-Completed task summaries are automatically injected as context into dependent prompts. Failed tasks retry up to `max_retries` before marking blocked.
+When a task's dependencies complete, towr automatically:
+- **Merges dependency branches** into the dependent workspace (so the child Claude has upstream code)
+- **Injects completion summaries** as context into the prompt
+- **Auto-commits** any uncommitted files when a task finishes
+- **Retries** failed tasks up to `max_retries` before marking blocked
 
 The overnight workflow: `towr orchestrate plan.yaml`, go to sleep, check results in the morning.
 

@@ -36,6 +36,9 @@ type Runtime interface {
 	SendApprove(wsID string) error
 	// GetWorktreePath returns the worktree path for a workspace.
 	GetWorktreePath(wsID string) string
+	// MergeDeps merges completed dependency branches into the workspace's worktree.
+	// This ensures the workspace has the code from its dependencies before dispatch.
+	MergeDeps(wsID string, depIDs []string) error
 	// AutoCommit commits any uncommitted files in the workspace's worktree.
 	AutoCommit(wsID string) error
 	// EmitEvent records an event in the store.
@@ -232,6 +235,15 @@ func (e *Executor) spawnAndDispatch(task *Task) {
 		e.logger.Log("\u2717 %s: spawn failed — %v", task.ID, err)
 		e.states[task.ID] = TaskFailed
 		return
+	}
+
+	// Merge dependency branches into the new workspace so it has their code.
+	if len(task.DependsOn) > 0 {
+		if err := e.runtime.MergeDeps(task.ID, task.DependsOn); err != nil {
+			e.logger.Log("\u26a0 %s: merge deps failed — %v (continuing anyway)", task.ID, err)
+		} else {
+			e.logger.Log("  %s: merged deps %v into workspace", task.ID, task.DependsOn)
+		}
 	}
 
 	// Build enhanced prompt with dependency context and commit instruction.
