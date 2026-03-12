@@ -65,8 +65,7 @@ func isDialogIndicator(line string) bool {
 		strings.Contains(line, "Enter to confirm") ||
 		strings.Contains(line, "Command contains") ||
 		strings.Contains(line, "This command requires approval") ||
-		strings.Contains(line, "Permission rule") ||
-		strings.Contains(line, "requires confirmation")
+		(strings.Contains(line, "Permission rule") && strings.Contains(line, "requires confirmation"))
 }
 
 // isIdlePrompt checks if a line is Claude's idle input prompt.

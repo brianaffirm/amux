@@ -63,19 +63,22 @@
     lines = [];
     setStatus("Connecting\u2026");
 
-    evtSource = new EventSource("/stream/" + encodeURIComponent(id));
-    evtSource.onopen = function() {
+    var src = new EventSource("/stream/" + encodeURIComponent(id));
+    evtSource = src;
+    src.onopen = function() {
       lines = [];
       body.innerHTML = "";
     };
-    evtSource.onmessage = function(e) { replaceSnapshot(e.data); };
-    evtSource.onerror = function() {
-      if (evtSource.readyState === EventSource.CLOSED) {
+    src.onmessage = function(e) { replaceSnapshot(e.data); };
+    src.onerror = function() {
+      // Only handle if this is still the active source (not stale).
+      if (evtSource !== src) return;
+      if (src.readyState === EventSource.CLOSED) {
         setStatus("Stream ended");
         evtSource = null;
       } else {
         setStatus("Disconnected — retrying\u2026");
-        evtSource.close();
+        src.close();
         evtSource = null;
         retryTimer = setTimeout(function() { connect(id); }, RETRY_MS);
       }
