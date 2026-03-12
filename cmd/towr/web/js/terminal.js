@@ -42,10 +42,9 @@
     body.scrollTop = body.scrollHeight;
   }
 
-  function appendText(raw) {
+  function replaceSnapshot(raw) {
     var clean = stripAnsi(raw);
-    var incoming = clean.split("\n");
-    for (var i = 0; i < incoming.length; i++) lines.push(incoming[i]);
+    lines = clean.split("\n");
     if (lines.length > MAX_LINES) lines = lines.slice(lines.length - MAX_LINES);
     renderLines();
   }
@@ -69,7 +68,7 @@
       lines = [];
       body.innerHTML = "";
     };
-    evtSource.onmessage = function(e) { appendText(e.data); };
+    evtSource.onmessage = function(e) { replaceSnapshot(e.data); };
     evtSource.onerror = function() {
       if (evtSource.readyState === EventSource.CLOSED) {
         setStatus("Stream ended");
