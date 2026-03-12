@@ -341,7 +341,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     (data || []).forEach(function(ws) {
       var s = (ws.status||"").toUpperCase();
       if (s === "RUNNING" || s === "SPAWNED") working++;
-      else if (s === "BLOCKED" || s === "FAILED" || s === "ERROR") blocked++;
+      else if (s === "BLOCKED" || s === "FAILED" || s === "ERROR" || s === "STALE" || s === "ORPHANED") blocked++;
       else idle++;
     });
     var now = new Date();
