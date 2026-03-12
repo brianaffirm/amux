@@ -99,12 +99,12 @@ func newWebCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comma
 				}
 			})
 
-			fmt.Printf("towr web dashboard: http://localhost%s\n", addr)
+			fmt.Printf("towr web dashboard: http://%s\n", addr)
 			return http.ListenAndServe(addr, mux)
 		},
 	}
 
-	cmd.Flags().StringVar(&addr, "addr", ":8090", "listen address")
+	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:8090", "listen address (use 0.0.0.0:8090 to expose on all interfaces)")
 	return cmd
 }
 
@@ -274,7 +274,20 @@ setTimeout(function refresh() {
       const tr = document.createElement("tr");
       const colors = {"READY":"#22c55e","MERGED":"#22c55e","LANDED":"#22c55e","RUNNING":"#eab308","SPAWNED":"#eab308","BLOCKED":"#ef4444","FAILED":"#ef4444","ERROR":"#ef4444","STALE":"#9ca3af","ORPHANED":"#9ca3af"};
       const c = colors[ws.status.toUpperCase()] || "#d1d5db";
-      tr.innerHTML = '<td>'+ws.id+'</td><td class="status" style="color:'+c+'">'+ws.status+'</td><td>'+ws.task+'</td><td>'+ws.diff+'</td><td>'+ws.age+'</td><td><a href="/stream/'+ws.id+'" target="_blank">stream</a></td>';
+      const fields = [ws.id, ws.status, ws.task, ws.diff, ws.age];
+      fields.forEach((val, i) => {
+        const td = document.createElement("td");
+        td.textContent = val;
+        if (i === 1) { td.className = "status"; td.style.color = c; }
+        tr.appendChild(td);
+      });
+      const td = document.createElement("td");
+      const a = document.createElement("a");
+      a.href = "/stream/" + encodeURIComponent(ws.id);
+      a.target = "_blank";
+      a.textContent = "stream";
+      td.appendChild(a);
+      tr.appendChild(td);
       tbody.appendChild(tr);
     });
     setTimeout(refresh, 5000);
