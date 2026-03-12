@@ -19,25 +19,31 @@ func (c *CursorAgent) LaunchEnv() map[string]string {
 }
 
 // IdlePattern returns the pattern used to detect Cursor's idle prompt.
+// Cursor shows "→ Add a follow-up" in a bordered input box when idle.
 func (c *CursorAgent) IdlePattern() string {
-	return ">"
+	return "Add a follow-up"
 }
 
 // DialogIndicators returns strings that indicate a permission/confirmation dialog.
+// Cursor auto-approves file edits but may prompt for shell commands.
 func (c *CursorAgent) DialogIndicators() []string {
 	return []string{
-		"Esc to cancel",
+		"Trust this workspace",
+		"Use arrow keys to navigate",
 		"Do you want to",
-		"Tab to amend",
-		"Enter to confirm",
-		"Command contains",
-		"This command requires approval",
 	}
 }
 
 // StartupDialogs returns patterns to auto-dismiss during launch.
+// Cursor shows a trust dialog on first run — press 'a' to accept.
 func (c *CursorAgent) StartupDialogs() []string {
-	return []string{"Enter to confirm"}
+	return []string{"Trust this workspace"}
+}
+
+// StartupKey returns the key to press for the startup trust dialog.
+// Cursor uses 'a' for "Trust this workspace", not Enter.
+func (c *CursorAgent) StartupKey() string {
+	return "a"
 }
 
 // CompletionMode returns "idle_pattern" since Cursor doesn't have JSONL events.

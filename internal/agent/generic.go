@@ -24,6 +24,9 @@ func (g *Generic) DialogIndicators() []string { return nil }
 // StartupDialogs returns nil since generic shells need no startup dismissal.
 func (g *Generic) StartupDialogs() []string { return nil }
 
+// StartupKey returns "Enter" as default.
+func (g *Generic) StartupKey() string { return "Enter" }
+
 // CompletionMode returns "process_exit" since generic agents signal completion by exiting.
 func (g *Generic) CompletionMode() string { return "process_exit" }
 

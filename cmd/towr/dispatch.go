@@ -241,11 +241,12 @@ func runInteractiveDispatch(app *appContext, sw *store.Workspace, wsID, dispatch
 				continue
 			}
 
-			// Handle any dialog during startup by pressing Enter.
+			// Handle any dialog during startup by pressing the agent's startup key.
+			startupKey := ag.StartupKey()
 			dismissed := false
 			for _, pattern := range startupDialogs {
 				if strings.Contains(captured, pattern) {
-					_ = app.term.SendKeys(wsID, "Enter")
+					_ = app.term.SendKeys(wsID, startupKey)
 					time.Sleep(1 * time.Second)
 					dismissed = true
 					break
@@ -255,7 +256,8 @@ func runInteractiveDispatch(app *appContext, sw *store.Workspace, wsID, dispatch
 				continue
 			}
 
-			if dispatch.DetectPaneState(captured) == dispatch.PaneIdle {
+			// Check if agent is idle using its specific idle pattern.
+			if strings.Contains(captured, ag.IdlePattern()) {
 				started = true
 				break
 			}
