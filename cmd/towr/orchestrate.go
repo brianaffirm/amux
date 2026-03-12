@@ -274,9 +274,11 @@ func (r *appRuntime) DetectState(wsID string) (string, string, error) {
 	}
 
 	// Check capture-pane for blocked detection or as fallback.
+	// Use activity timestamp for more reliable idle detection.
 	captured, captErr := r.app.term.CapturePane(wsID, 200)
 	if captErr == nil {
-		capState := dispatch.DetectPaneState(captured)
+		lastActivity := r.app.term.PaneLastActivity(wsID)
+		capState := dispatch.DetectPaneStateWithActivity(captured, lastActivity, 15*time.Second)
 		if capState == dispatch.PaneBlocked {
 			state = dispatch.PaneBlocked
 		}

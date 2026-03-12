@@ -81,7 +81,7 @@ You (or a master Claude session)
 | **What it does** | Fast parallel execution within one task | Lifecycle management across many tasks |
 | **Scope** | Single workspace, single session | Multi-workspace, multi-session, multi-repo |
 | **Persistence** | Ephemeral — gone when session ends | Event-sourced — survives crashes, reboots, sleep |
-| **Runtimes** | Claude Code only | Claude Code, Cursor, Aider, any terminal agent |
+| **Runtimes** | Claude Code only | Claude Code today; workspace isolation + landing works with any agent |
 | **Merge pipeline** | None — you merge manually | Validated: hooks → rebase → merge → cleanup |
 | **PR workflow** | None | Auto-create PRs, monitor CI, respond to reviews |
 | **Safety model** | `--dangerously-skip-permissions` (all or nothing) | Allowlist safe tools, block dangerous ones, audit bypasses |

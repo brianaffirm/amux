@@ -395,7 +395,8 @@ func pollWorkspacesAllRepos(cache *repoStoreCache, states map[string]*watchState
 
 		captured, captErr := term.CapturePane(ws.ID, 200)
 		if captErr == nil {
-			capState := dispatch.DetectPaneState(captured)
+			lastActivity := term.PaneLastActivity(ws.ID)
+			capState := dispatch.DetectPaneStateWithActivity(captured, lastActivity, 15*time.Second)
 			if capState == dispatch.PaneBlocked {
 				currentState = dispatch.PaneBlocked
 			}
@@ -574,7 +575,8 @@ func pollWorkspaces(app *appContext, states map[string]*watchState, autoApprove 
 
 		captured, captErr := app.term.CapturePane(ws.ID, 200)
 		if captErr == nil {
-			capState := dispatch.DetectPaneState(captured)
+			lastActivity := app.term.PaneLastActivity(ws.ID)
+			capState := dispatch.DetectPaneStateWithActivity(captured, lastActivity, 15*time.Second)
 			if capState == dispatch.PaneBlocked {
 				currentState = dispatch.PaneBlocked
 			}

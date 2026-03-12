@@ -1,6 +1,9 @@
 package dispatch
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // PaneState represents what Claude Code is doing in the tmux pane.
 type PaneState string
@@ -55,6 +58,32 @@ func DetectPaneState(capturedOutput string) PaneState {
 		}
 	}
 	return PaneWorking
+}
+
+// DetectPaneStateWithActivity combines capture-pane content with tmux activity timestamp
+// for more reliable idle detection. If the pane shows an idle prompt but had recent output
+// (within minQuiet), returns PaneWorking instead of PaneIdle to avoid false positives.
+// Use time.Time{} for lastActivity to skip activity checking (falls back to content-only).
+func DetectPaneStateWithActivity(capturedOutput string, lastActivity time.Time, minQuiet time.Duration) PaneState {
+	state := DetectPaneState(capturedOutput)
+
+	// Only refine idle detection — blocked, working, empty are already reliable.
+	if state != PaneIdle {
+		return state
+	}
+
+	// If no activity timestamp available, trust the content-only result.
+	if lastActivity.IsZero() {
+		return PaneIdle
+	}
+
+	// If the pane had output recently, the idle prompt may be from a previous turn.
+	// The agent could still be processing between tool calls.
+	if time.Since(lastActivity) < minQuiet {
+		return PaneWorking
+	}
+
+	return PaneIdle
 }
 
 // isDialogIndicator checks if a line indicates an active permission/confirmation dialog.
