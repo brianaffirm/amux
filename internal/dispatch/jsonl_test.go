@@ -210,13 +210,14 @@ func TestDetectClaudeActivity(t *testing.T) {
 		}
 	})
 
-	t.Run("old assistant returns idle", func(t *testing.T) {
+	t.Run("old assistant returns inconclusive", func(t *testing.T) {
 		content := `{"type":"assistant","timestamp":"2026-03-11T00:06:05.000Z","sessionId":"s1","message":{"role":"assistant","content":[{"type":"text","text":"All done"}]}}
 `
 		if err := os.WriteFile(jsonlFile, []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		past := time.Now().Add(-30 * time.Second)
+		// 90s old: between 60-120s threshold → inconclusive (PaneEmpty)
+		past := time.Now().Add(-90 * time.Second)
 		if err := os.Chtimes(jsonlFile, past, past); err != nil {
 			t.Fatal(err)
 		}
@@ -225,8 +226,8 @@ func TestDetectClaudeActivity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DetectClaudeActivity: %v", err)
 		}
-		if state != PaneIdle {
-			t.Errorf("state = %q, want %q", state, PaneIdle)
+		if state != PaneEmpty {
+			t.Errorf("state = %q, want %q", state, PaneEmpty)
 		}
 		if summary != "All done" {
 			t.Errorf("summary = %q, want %q", summary, "All done")

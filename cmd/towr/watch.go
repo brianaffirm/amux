@@ -376,10 +376,15 @@ func pollWorkspacesAllRepos(cache *repoStoreCache, states map[string]*watchState
 
 		if ws.WorktreePath != "" {
 			jState, jSummary, jErr := dispatch.DetectClaudeActivity(ws.WorktreePath)
-			if jErr == nil {
+			if jErr == nil && jState != dispatch.PaneEmpty {
+				// JSONL gave a definitive answer (working, idle, blocked).
 				currentState = jState
 				jsonlSummary = jSummary
 				usedJSONL = true
+			}
+			// If JSONL returned PaneEmpty, it's inconclusive — fall through to capture-pane.
+			if jErr == nil && jState == dispatch.PaneEmpty {
+				jsonlSummary = jSummary // keep the summary even if state is inconclusive
 			}
 		}
 
@@ -552,10 +557,13 @@ func pollWorkspaces(app *appContext, states map[string]*watchState, autoApprove 
 
 		if ws.WorktreePath != "" {
 			jState, jSummary, jErr := dispatch.DetectClaudeActivity(ws.WorktreePath)
-			if jErr == nil {
+			if jErr == nil && jState != dispatch.PaneEmpty {
 				currentState = jState
 				jsonlSummary = jSummary
 				usedJSONL = true
+			}
+			if jErr == nil && jState == dispatch.PaneEmpty {
+				jsonlSummary = jSummary
 			}
 		}
 

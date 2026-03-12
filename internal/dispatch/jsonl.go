@@ -167,11 +167,10 @@ func findLastLine(text string) string {
 // message content if available.
 //
 // State logic:
-//   - "last-prompt" type → PaneIdle (session waiting for input)
+//   - "last-prompt" type → PaneIdle (definitive: session waiting for input)
 //   - file mtime > 120s ago → PaneIdle (stale)
-//   - "progress" or "user" type AND mtime < 30s → PaneWorking
-//   - "assistant" type AND mtime < 30s → PaneWorking (may still be generating)
-//   - "assistant" type AND mtime > 30s → PaneIdle (finished responding)
+//   - any type AND mtime < 60s → PaneWorking (recently active)
+//   - any type AND 60-120s → PaneEmpty (inconclusive — caller should check capture-pane)
 //   - no JSONL file → PaneEmpty
 func DetectClaudeActivity(worktreePath string) (PaneState, string, error) {
 	jsonlPath, err := FindLatestJSONL(worktreePath)
@@ -194,41 +193,27 @@ func DetectClaudeActivity(worktreePath string) (PaneState, string, error) {
 	// Extract summary from assistant messages.
 	summary := extractSummary(entry)
 
-	// "last-prompt" always means idle (session ended or waiting for input).
+	// "last-prompt" definitively means idle (session waiting for input).
+	// This is the only reliable idle signal from JSONL alone.
 	if entry.Type == "last-prompt" {
 		return PaneIdle, summary, nil
 	}
 
-	// Stale file means idle regardless of last entry type.
+	// Very stale file (>120s) — treat as idle regardless.
 	if age > 120*time.Second {
 		return PaneIdle, summary, nil
 	}
 
-	// Recent activity — determine based on entry type.
-	switch entry.Type {
-	case "progress", "user":
-		if age < 30*time.Second {
-			return PaneWorking, summary, nil
-		}
-		return PaneIdle, summary, nil
-	case "assistant":
-		if age < 30*time.Second {
-			return PaneWorking, summary, nil
-		}
-		return PaneIdle, summary, nil
-	case "system", "file-history-snapshot":
-		// System events shortly after assistant response — likely idle.
-		if age < 30*time.Second {
-			return PaneWorking, summary, nil
-		}
-		return PaneIdle, summary, nil
-	default:
-		// Unknown type — treat as working if recent, idle otherwise.
-		if age < 30*time.Second {
-			return PaneWorking, summary, nil
-		}
-		return PaneIdle, summary, nil
+	// For all other types: if the file was modified recently, Claude is working.
+	// If not modified recently, return PaneEmpty as a signal that JSONL is
+	// inconclusive — the caller should fall back to capture-pane for confirmation.
+	// This prevents false idle detection when Claude pauses between tool calls.
+	if age < 60*time.Second {
+		return PaneWorking, summary, nil
 	}
+
+	// Between 60-120s: inconclusive. Return PaneEmpty to signal "check capture-pane".
+	return PaneEmpty, summary, nil
 }
 
 // extractSummary pulls a text summary from a JSONLEntry.
