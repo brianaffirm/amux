@@ -323,10 +323,14 @@ func runInteractiveWait(app *appContext, wsID, dispatchID string, timeout time.D
 		// Try JSONL-based detection first (more reliable for idle/working).
 		if worktreePath != "" {
 			jState, jSummary, err := dispatch.DetectClaudeActivity(worktreePath)
-			if err == nil {
+			if err == nil && jState != dispatch.PaneEmpty {
+				// JSONL gave a definitive answer.
 				state = jState
 				jsonlSummary = jSummary
 				usedJSONL = true
+			}
+			if err == nil && jState == dispatch.PaneEmpty {
+				jsonlSummary = jSummary // keep summary even if inconclusive
 			}
 		}
 
