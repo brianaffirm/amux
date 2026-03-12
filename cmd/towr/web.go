@@ -99,6 +99,28 @@ func newWebCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comma
 				}
 			})
 
+			mux.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
+				if app == nil {
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode([]store.Event{})
+					return
+				}
+				events, err := app.store.QueryEvents(store.EventQuery{})
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+				// Take the last 50 (newest) and reverse to newest-first.
+				if len(events) > 50 {
+					events = events[len(events)-50:]
+				}
+				for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
+					events[i], events[j] = events[j], events[i]
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(events)
+			})
+
 			mux.HandleFunc("/stream/", func(w http.ResponseWriter, r *http.Request) {
 				id := strings.TrimPrefix(r.URL.Path, "/stream/")
 				if id == "" {
@@ -268,7 +290,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
   .header-meta .dot { display: inline-block; width: 6px; height: 6px;
     border-radius: 50%; background: #3fb950; margin-right: 4px; vertical-align: middle; }
 
-  .layout { display: flex; height: calc(100vh - 53px); }
+  .layout { display: flex; height: calc(100vh - 88px); }
   .sidebar { flex: 1; overflow-y: auto; padding: 1rem; min-width: 0; }
   .terminal-panel {
     width: 0; overflow: hidden; border-left: 1px solid #21262d;
@@ -326,7 +348,37 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px;
     padding: 2px 6px; font-family: inherit; font-size: 0.65rem; flex: 1; min-width: 80px;
   }
+  .stats-bar {
+    display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1.5rem;
+    border-bottom: 1px solid #21262d; background: #161b22; flex-wrap: wrap;
+  }
+  .stat-pill {
+    font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 10px;
+    letter-spacing: 0.03em; white-space: nowrap;
+  }
+  .stat-meta { font-size: 0.65rem; color: #484f58; margin-left: auto; white-space: nowrap; }
   .empty-state { text-align: center; color: #484f58; padding: 4rem 1rem; font-size: 0.85rem; }
+
+  .activity-log { border-top: 1px solid #21262d; background: #161b22; }
+  .activity-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 1rem; cursor: pointer; font-size: 0.75rem; color: #8b949e;
+    user-select: none;
+  }
+  .activity-toggle:hover { color: #c9d1d9; }
+  .activity-toggle .arrow { transition: transform 0.15s; display: inline-block; margin-right: 6px; }
+  .activity-toggle.open .arrow { transform: rotate(90deg); }
+  .activity-feed {
+    max-height: 0; overflow: hidden; transition: max-height 0.25s ease;
+  }
+  .activity-feed.open { max-height: 300px; overflow-y: auto; }
+  .evt-row {
+    display: flex; gap: 0.75rem; padding: 0.3rem 1rem; font-size: 0.7rem;
+    border-top: 1px solid #21262d; color: #8b949e;
+  }
+  .evt-ts { color: #484f58; white-space: nowrap; }
+  .evt-ws { font-weight: 600; color: #58a6ff; }
+  .evt-kind { font-weight: 600; }
 
   @media (max-width: 768px) {
     .layout { flex-direction: column; }
@@ -342,6 +394,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
   <h1>towr</h1>
   <span class="header-meta"><span class="dot"></span>live &middot; refreshing every 5s</span>
 </header>
+<div class="stats-bar" id="statsBar"></div>
 <div class="layout">
   <div class="sidebar" id="sidebar"></div>
   <div class="terminal-panel" id="termPanel">
@@ -351,6 +404,10 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     </div>
     <div class="terminal-body" id="termBody"></div>
   </div>
+</div>
+<div class="activity-log">
+  <div class="activity-toggle" id="actToggle"><span><span class="arrow">&#9654;</span>Activity Log <span id="actCount"></span></span></div>
+  <div class="activity-feed" id="actFeed"></div>
 </div>
 <script>
 (function() {
@@ -384,7 +441,33 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     return d.innerHTML;
   }
 
+  var startTime = new Date();
+
+  function renderStats(data) {
+    var total = (data || []).length;
+    var working = 0, idle = 0, blocked = 0;
+    (data || []).forEach(function(ws) {
+      var s = (ws.status||"").toUpperCase();
+      if (s === "RUNNING" || s === "SPAWNED") working++;
+      else if (s === "BLOCKED" || s === "FAILED" || s === "ERROR" || s === "STALE" || s === "ORPHANED") blocked++;
+      else idle++;
+    });
+    var now = new Date();
+    var uptimeSec = Math.floor((now - startTime) / 1000);
+    var uptimeMin = Math.floor(uptimeSec / 60);
+    var uptimeStr = uptimeMin > 0 ? uptimeMin + "m " + (uptimeSec % 60) + "s" : uptimeSec + "s";
+    var timeStr = now.toLocaleTimeString();
+    var bar = document.getElementById("statsBar");
+    bar.innerHTML =
+      '<span class="stat-pill" style="color:#c9d1d9;background:#30363d">' + total + ' total</span>' +
+      '<span class="stat-pill" style="color:#58a6ff;background:#58a6ff22">' + working + ' working</span>' +
+      '<span class="stat-pill" style="color:#8b949e;background:#8b949e22">' + idle + ' idle</span>' +
+      '<span class="stat-pill" style="color:#f85149;background:#f8514922">' + blocked + ' blocked</span>' +
+      '<span class="stat-meta">uptime ' + esc(uptimeStr) + ' &middot; refreshed ' + esc(timeStr) + '</span>';
+  }
+
   function render(data) {
+    renderStats(data);
     var groups = { working: [], attention: [], completed: [] };
     (data || []).forEach(function(ws) { groups[zone(ws.status)].push(ws); });
 
@@ -491,12 +574,41 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     document.querySelectorAll(".card.active").forEach(function(el) { el.classList.remove("active"); });
   });
 
-  function poll() {
-    fetch("/api/workspaces").then(function(r) { return r.json(); }).then(function(data) {
-      render(data);
-    }).catch(function() {}).finally(function() {
-      setTimeout(poll, 5000);
+  var EVENT_COLORS = {
+    "task.completed": "#3fb950", "task.failed": "#f85149",
+    "task.dispatched": "#58a6ff", "task.blocked": "#d29922"
+  };
+
+  document.getElementById("actToggle").addEventListener("click", function() {
+    this.classList.toggle("open");
+    document.getElementById("actFeed").classList.toggle("open");
+  });
+
+  function renderEvents(events) {
+    var feed = document.getElementById("actFeed");
+    var countEl = document.getElementById("actCount");
+    countEl.textContent = "(" + (events||[]).length + " events)";
+    var html = "";
+    (events||[]).forEach(function(ev) {
+      var ts = new Date(ev.ts).toLocaleTimeString();
+      var c = EVENT_COLORS[ev.kind] || "#8b949e";
+      var summary = "";
+      if (ev.data && ev.data.summary) summary = ev.data.summary;
+      else if (ev.data && ev.data.message) summary = ev.data.message;
+      html += '<div class="evt-row">';
+      html += '<span class="evt-ts">' + esc(ts) + '</span>';
+      html += '<span class="evt-ws">' + esc(ev.workspace_id||"-") + '</span>';
+      html += '<span class="evt-kind" style="color:' + c + '">' + esc(ev.kind) + '</span>';
+      html += '<span>' + esc(summary) + '</span>';
+      html += '</div>';
     });
+    feed.innerHTML = html;
+  }
+
+  function poll() {
+    fetch("/api/workspaces").then(function(r) { return r.json(); }).then(render).catch(function() {});
+    fetch("/api/events").then(function(r) { return r.json(); }).then(renderEvents).catch(function() {});
+    setTimeout(poll, 5000);
   }
   poll();
 })();
