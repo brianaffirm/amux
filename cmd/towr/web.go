@@ -49,7 +49,26 @@ func newWebCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comma
 				json.NewEncoder(w).Encode(rows)
 			})
 
-			mux.HandleFunc("/stream/", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
+			if app == nil {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode([]store.Event{})
+				return
+			}
+			events, err := app.store.QueryEvents(store.EventQuery{Limit: 50})
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			// Reverse to newest-first.
+			for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
+				events[i], events[j] = events[j], events[i]
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(events)
+		})
+
+		mux.HandleFunc("/stream/", func(w http.ResponseWriter, r *http.Request) {
 				id := strings.TrimPrefix(r.URL.Path, "/stream/")
 				if id == "" {
 					http.Error(w, "missing workspace id", 400)
@@ -266,6 +285,27 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
 
   .empty-state { text-align: center; color: #484f58; padding: 4rem 1rem; font-size: 0.85rem; }
 
+  .activity-log { border-top: 1px solid #21262d; background: #161b22; }
+  .activity-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 1rem; cursor: pointer; font-size: 0.75rem; color: #8b949e;
+    user-select: none;
+  }
+  .activity-toggle:hover { color: #c9d1d9; }
+  .activity-toggle .arrow { transition: transform 0.15s; display: inline-block; margin-right: 6px; }
+  .activity-toggle.open .arrow { transform: rotate(90deg); }
+  .activity-feed {
+    max-height: 0; overflow: hidden; transition: max-height 0.25s ease;
+  }
+  .activity-feed.open { max-height: 300px; overflow-y: auto; }
+  .evt-row {
+    display: flex; gap: 0.75rem; padding: 0.3rem 1rem; font-size: 0.7rem;
+    border-top: 1px solid #21262d; color: #8b949e;
+  }
+  .evt-ts { color: #484f58; white-space: nowrap; }
+  .evt-ws { font-weight: 600; color: #58a6ff; }
+  .evt-kind { font-weight: 600; }
+
   @media (max-width: 768px) {
     .layout { flex-direction: column; }
     .terminal-panel.open { width: 100%; min-width: 0; height: 50%; }
@@ -289,6 +329,10 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     </div>
     <div class="terminal-body" id="termBody"></div>
   </div>
+</div>
+<div class="activity-log">
+  <div class="activity-toggle" id="actToggle"><span><span class="arrow">&#9654;</span>Activity Log <span id="actCount"></span></span></div>
+  <div class="activity-feed" id="actFeed"></div>
 </div>
 <script>
 (function() {
@@ -401,9 +445,44 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
     document.querySelectorAll(".card.active").forEach(function(el) { el.classList.remove("active"); });
   });
 
+  var EVENT_COLORS = {
+    "task.completed": "#3fb950", "task.failed": "#f85149",
+    "task.dispatched": "#58a6ff", "task.blocked": "#d29922"
+  };
+
+  document.getElementById("actToggle").addEventListener("click", function() {
+    this.classList.toggle("open");
+    document.getElementById("actFeed").classList.toggle("open");
+  });
+
+  function renderEvents(events) {
+    var feed = document.getElementById("actFeed");
+    var countEl = document.getElementById("actCount");
+    countEl.textContent = "(" + (events||[]).length + " events)";
+    var html = "";
+    (events||[]).forEach(function(ev) {
+      var ts = new Date(ev.ts).toLocaleTimeString();
+      var c = EVENT_COLORS[ev.kind] || "#8b949e";
+      var summary = "";
+      if (ev.data && ev.data.summary) summary = ev.data.summary;
+      else if (ev.data && ev.data.message) summary = ev.data.message;
+      html += '<div class="evt-row">';
+      html += '<span class="evt-ts">' + esc(ts) + '</span>';
+      html += '<span class="evt-ws">' + esc(ev.workspace_id||"-") + '</span>';
+      html += '<span class="evt-kind" style="color:' + c + '">' + esc(ev.kind) + '</span>';
+      html += '<span>' + esc(summary) + '</span>';
+      html += '</div>';
+    });
+    feed.innerHTML = html;
+  }
+
   function poll() {
-    fetch("/api/workspaces").then(function(r) { return r.json(); }).then(function(data) {
-      render(data);
+    Promise.all([
+      fetch("/api/workspaces").then(function(r) { return r.json(); }),
+      fetch("/api/events").then(function(r) { return r.json(); })
+    ]).then(function(results) {
+      render(results[0]);
+      renderEvents(results[1]);
     }).catch(function() {}).finally(function() {
       setTimeout(poll, 5000);
     });
