@@ -137,6 +137,16 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 				return nil
 			}
 
+			// Compute per-workspace overlap counts (repo-scoped only).
+			overlapCounts := make(map[string]int)
+			if !showRepoColumn {
+				pairs := workspace.DetectOverlaps(workspaces)
+				for _, p := range pairs {
+					overlapCounts[p.WorkspaceA] += len(p.Files)
+					overlapCounts[p.WorkspaceB] += len(p.Files)
+				}
+			}
+
 			columns := []cli.Column{
 				{Header: "ID", Width: 14},
 				{Header: "STATUS", Width: 10},
@@ -144,6 +154,7 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 				{Header: "HEALTH", Width: 8},
 				{Header: "ACTIVITY", Width: 10},
 				{Header: "DRIFT", Width: 6},
+				{Header: "OVERLAP", Width: 8},
 				{Header: "DIFF", Width: 10},
 				{Header: "TREE", Width: 10},
 				{Header: "AGENT", Width: 8},
@@ -231,6 +242,12 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 
 				age := cli.FormatAgeFromString(ws.CreatedAt)
 
+				// Overlap.
+				overlapStr := "\033[2mclean\033[0m"
+				if n := overlapCounts[ws.ID]; n > 0 {
+					overlapStr = fmt.Sprintf("⚠ %d", n)
+				}
+
 				row := []string{
 					ws.ID,
 					statusStr,
@@ -238,6 +255,7 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 					healthStr,
 					activityStr,
 					driftStr,
+					overlapStr,
 					diffStr,
 					treeStr,
 					agentStr,
