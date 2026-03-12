@@ -25,12 +25,16 @@ func (c *CursorAgent) IdlePattern() string {
 }
 
 // DialogIndicators returns strings that indicate a permission/confirmation dialog.
-// Cursor auto-approves file edits but may prompt for shell commands.
+// Cursor prompts for shell commands not in the allowlist.
+// File edits are auto-approved — only shell commands trigger dialogs.
 func (c *CursorAgent) DialogIndicators() []string {
 	return []string{
+		"Run this command?",
+		"Not in allowlist",
+		"Waiting for approval",
+		"Run (once)",
 		"Trust this workspace",
 		"Use arrow keys to navigate",
-		"Do you want to",
 	}
 }
 

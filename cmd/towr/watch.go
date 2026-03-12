@@ -703,7 +703,15 @@ func handleTransition(app *appContext, ws *store.Workspace, st *watchState, newS
 		}
 
 		if autoApprove {
-			if err := app.term.SendKeys(ws.ID, "Enter"); err == nil {
+			// Pick the right approval key based on the dialog type.
+			// Cursor uses 'y' for shell approval, 'a' for trust. Claude uses Enter.
+			approveKey := "Enter"
+			if strings.Contains(captured, "Run this command?") || strings.Contains(captured, "Run (once)") {
+				approveKey = "y" // Cursor shell approval
+			} else if strings.Contains(captured, "Trust this workspace") {
+				approveKey = "a" // Cursor trust dialog
+			}
+			if err := app.term.SendKeys(ws.ID, approveKey); err == nil {
 				st.finalStatus = "working"
 				if *jsonFlag {
 					emitJSON(map[string]interface{}{
@@ -733,7 +741,14 @@ func handleTransition(app *appContext, ws *store.Workspace, st *watchState, newS
 					if reState != dispatch.PaneBlocked {
 						break
 					}
-					_ = app.term.SendKeys(ws.ID, "Enter")
+					// Pick approval key for this dialog too
+					reKey := "Enter"
+					if strings.Contains(recapture, "Run this command?") || strings.Contains(recapture, "Run (once)") {
+						reKey = "y"
+					} else if strings.Contains(recapture, "Trust this workspace") {
+						reKey = "a"
+					}
+					_ = app.term.SendKeys(ws.ID, reKey)
 					reDialog := dispatch.ExtractDialogContext(recapture)
 					if !*jsonFlag {
 						fmt.Printf("[%s] \u2713 %s: auto-approved \u2014 %q\n", formatTime(time.Now()), ws.ID, reDialog)
