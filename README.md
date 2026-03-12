@@ -38,9 +38,22 @@ The YAML can reference anything the agent can read — Jira tickets, GitHub issu
 
 **Land safely** — Validated merge pipeline with pre-land hooks, rebase-ff, protected branch enforcement, and full cleanup. Not a git alias — a pipeline that blocks bad merges.
 
-**Stay safe** — "Auto-approve" doesn't mean "approve everything." Agents get a `.claude/settings.json` allowlist: file edits, builds, and tests are pre-approved; `rm -rf`, `git push --force`, and network calls are blocked. This isn't `--dangerously-skip-permissions` — it's a scoped allowlist where you choose what's safe. Permissions that fall outside the allowlist are surfaced in the web dashboard and CLI, not silently skipped. Pre-land hooks run your test suite before any merge. Protected branches block direct pushes — agents create PRs, humans merge. Every `--force` or `--no-hooks` bypass is recorded in the audit log with a mandatory `--reason`. You can export the full trail with `towr audit --since 7d --csv` for compliance.
+**Stay safe** — Agents work in sandboxed git worktrees. They can't touch master, other workspaces, or files outside their branch. Multiple layers of protection:
 
-**Audit everything** — Every dispatch, approval, completion, and failure is recorded in an immutable event store. `towr audit --since 24h` exports the trail for compliance. `towr log <id>` shows per-workspace history. Bypass events (`--force`, `--no-hooks`) are flagged with `[BYPASS]`.
+| Layer | What it does |
+|---|---|
+| **Workspace isolation** | Each agent gets its own git worktree — changes are on a branch, never on main |
+| **Tool allowlist** | `.claude/settings.json` pre-approves safe tools (edit, build, test), blocks dangerous ones (`rm -rf`, `force push`, network calls) |
+| **Sandbox per agent** | Claude: scoped allowlist. Cursor: sandbox mode. Codex: `workspace-write` — can only modify files within the worktree |
+| **Pre-land hooks** | Test suite runs before any merge — if tests fail, the merge is blocked |
+| **Protected branches** | Agents create PRs, humans merge. No direct push to main. |
+| **Approval visibility** | Every permission dialog and auto-approval is logged in the activity feed — the web dashboard shows what was approved, when, and why |
+| **Bypass auditing** | Every `--force` or `--no-hooks` requires `--reason` and is flagged `[BYPASS]` in the audit log |
+| **Compliance export** | `towr audit --since 7d --csv` exports the full trail for SOC2/SOX review |
+
+This isn't "let agents do whatever they want." It's "let agents code freely in a sandbox, validate before merging, and audit everything."
+
+**Audit everything** — Every dispatch, approval, completion, and failure is recorded in an immutable event store. `towr audit --since 24h` exports the trail. `towr log <id>` shows per-workspace history. Bypass events are flagged `[BYPASS]`. The web dashboard shows the activity feed live — approvals in green, blocks in red, bypasses highlighted.
 
 **See everything** — Web dashboard (`towr web`) with live workspace cards grouped by attention level, terminal streaming via SSE, activity feed, and action buttons. TUI dashboard (`towr`) for the terminal. `towr ls` for quick status.
 
