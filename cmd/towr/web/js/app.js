@@ -20,9 +20,6 @@
 
   function badgeBg(color) { return color + "22"; }
 
-  var activeId = null;
-  var evtSource = null;
-
   function esc(s) {
     var d = document.createElement("span");
     d.textContent = s;
@@ -77,7 +74,7 @@
       html += '<div class="cards">';
       items.forEach(function(ws) {
         var c = statusColor(ws.status);
-        var isActive = ws.id === activeId;
+        var isActive = ws.id === window.activeTerminalId;
         html += '<div class="card' + (isActive ? ' active' : '') + '" data-id="' + esc(ws.id) + '">';
         html += '<div class="card-top">';
         html += '<span class="card-id">' + esc(ws.id) + '</span>';
@@ -106,7 +103,11 @@
     document.getElementById("sidebar").innerHTML = html;
 
     document.querySelectorAll(".card").forEach(function(el) {
-      el.addEventListener("click", function() { openTerminal(el.getAttribute("data-id")); });
+      el.addEventListener("click", function() {
+        var id = el.getAttribute("data-id");
+        window.activeTerminalId = id;
+        window.openTerminal(id, id);
+      });
     });
     document.querySelectorAll("[data-approve]").forEach(function(btn) {
       btn.addEventListener("click", function(e) {
@@ -129,73 +130,12 @@
     });
   }
 
-  function openTerminal(id) {
-    activeId = id;
-    var panel = document.getElementById("termPanel");
-    var body = document.getElementById("termBody");
-    var title = document.getElementById("termTitle");
-    panel.classList.add("open");
-    title.textContent = id;
-    body.textContent = "connecting...";
-
-    if (evtSource) { evtSource.close(); evtSource = null; }
-    evtSource = new EventSource("/stream/" + encodeURIComponent(id));
-    evtSource.onmessage = function(e) {
-      body.textContent = "";
-      var lines = e.data.split("\n");
-      body.textContent = lines.join("\n");
-      body.scrollTop = body.scrollHeight;
-    };
-    evtSource.onerror = function() {
-      body.textContent += "\n[stream disconnected]";
-    };
-
-    document.querySelectorAll(".card").forEach(function(el) {
-      el.classList.toggle("active", el.getAttribute("data-id") === id);
-    });
-  }
-
-  document.getElementById("termClose").addEventListener("click", function() {
-    document.getElementById("termPanel").classList.remove("open");
-    if (evtSource) { evtSource.close(); evtSource = null; }
-    activeId = null;
-    document.querySelectorAll(".card.active").forEach(function(el) { el.classList.remove("active"); });
-  });
-
-  var EVENT_COLORS = {
-    "task.completed": "#3fb950", "task.failed": "#f85149",
-    "task.dispatched": "#58a6ff", "task.blocked": "#d29922"
-  };
-
-  document.getElementById("actToggle").addEventListener("click", function() {
-    this.classList.toggle("open");
-    document.getElementById("actFeed").classList.toggle("open");
-  });
-
-  function renderEvents(events) {
-    var feed = document.getElementById("actFeed");
-    var countEl = document.getElementById("actCount");
-    countEl.textContent = "(" + (events||[]).length + " events)";
-    var html = "";
-    (events||[]).forEach(function(ev) {
-      var ts = new Date(ev.ts).toLocaleTimeString();
-      var c = EVENT_COLORS[ev.kind] || "#8b949e";
-      var summary = "";
-      if (ev.data && ev.data.summary) summary = ev.data.summary;
-      else if (ev.data && ev.data.message) summary = ev.data.message;
-      html += '<div class="evt-row">';
-      html += '<span class="evt-ts">' + esc(ts) + '</span>';
-      html += '<span class="evt-ws">' + esc(ev.workspace_id||"-") + '</span>';
-      html += '<span class="evt-kind" style="color:' + c + '">' + esc(ev.kind) + '</span>';
-      html += '<span>' + esc(summary) + '</span>';
-      html += '</div>';
-    });
-    feed.innerHTML = html;
-  }
 
   function poll() {
     fetch("/api/workspaces").then(function(r) { return r.json(); }).then(render).catch(function() {});
-    fetch("/api/events").then(function(r) { return r.json(); }).then(renderEvents).catch(function() {});
+    fetch("/api/events").then(function(r) { return r.json(); }).then(function(events) {
+      if (typeof renderActivity === "function") renderActivity(events);
+    }).catch(function() {});
     setTimeout(poll, 5000);
   }
   poll();

@@ -339,18 +339,28 @@ Run `towr` with no arguments for an interactive dashboard:
 
 ## Web Dashboard
 
-`towr web` starts a local HTTP server with a browser-based dashboard:
+`towr web` starts a local HTTP server with a real-time browser dashboard:
 
 ```bash
 towr web                    # http://127.0.0.1:8090
 towr web --addr :9000       # custom port
 ```
 
-- **`/`** — HTML dashboard with color-coded status, auto-refreshes every 5s
-- **`/api/workspaces`** — JSON API for scripting and external tools
-- **`/stream/<id>`** — SSE endpoint streaming live tmux output for a workspace
+- **Workspace cards** grouped by attention zone: Working (blue), Needs Attention (red), Completed (green)
+- **Live terminal view** — click any card to stream its tmux output in real-time
+- **Activity feed** — reverse-chronological event log with color-coded entries
+- **Stats bar** — total/working/blocked/completed counts at a glance
+- **Action buttons** — approve permission dialogs and send messages from the browser
+- **Auto-refresh** every 5s, dark theme, responsive, zero external dependencies
 
-Binds to localhost only by default. Use `--addr 0.0.0.0:8090` to expose on all interfaces.
+API endpoints:
+- `GET /api/workspaces` — JSON workspace list for scripting
+- `GET /api/events` — recent audit events
+- `GET /api/stream/<id>` — SSE live terminal output
+- `POST /api/workspaces/<id>/approve` — approve permission dialog
+- `POST /api/workspaces/<id>/send` — send message to workspace
+
+All static assets embedded in the Go binary via `embed.FS` — single `go install`, nothing else needed.
 
 ## Commands
 
