@@ -138,12 +138,26 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 			}
 
 			// Compute per-workspace overlap counts (repo-scoped only).
+			// Use a set per workspace to avoid counting the same file multiple times
+			// when it overlaps with multiple peers.
 			overlapCounts := make(map[string]int)
 			if !showRepoColumn {
+				overlapFiles := make(map[string]map[string]bool) // wsID → set of files
 				pairs := workspace.DetectOverlaps(workspaces)
 				for _, p := range pairs {
-					overlapCounts[p.WorkspaceA] += len(p.Files)
-					overlapCounts[p.WorkspaceB] += len(p.Files)
+					if overlapFiles[p.WorkspaceA] == nil {
+						overlapFiles[p.WorkspaceA] = make(map[string]bool)
+					}
+					if overlapFiles[p.WorkspaceB] == nil {
+						overlapFiles[p.WorkspaceB] = make(map[string]bool)
+					}
+					for _, f := range p.Files {
+						overlapFiles[p.WorkspaceA][f] = true
+						overlapFiles[p.WorkspaceB][f] = true
+					}
+				}
+				for wsID, files := range overlapFiles {
+					overlapCounts[wsID] = len(files)
 				}
 			}
 
@@ -243,9 +257,12 @@ func newLsCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comman
 				age := cli.FormatAgeFromString(ws.CreatedAt)
 
 				// Overlap.
-				overlapStr := "\033[2mclean\033[0m"
-				if n := overlapCounts[ws.ID]; n > 0 {
-					overlapStr = fmt.Sprintf("⚠ %d", n)
+				overlapStr := "-"
+				if !showRepoColumn {
+					overlapStr = "\033[2mclean\033[0m"
+					if n := overlapCounts[ws.ID]; n > 0 {
+						overlapStr = fmt.Sprintf("⚠ %d", n)
+					}
 				}
 
 				row := []string{
