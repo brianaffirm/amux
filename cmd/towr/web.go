@@ -55,13 +55,14 @@ func newWebCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Comma
 					return
 				}
 				// Expect paths like /api/workspaces/{id}/approve or /api/workspaces/{id}/send
+				// Parse action from the rightmost segment so IDs containing "/" (e.g. "feature/foo") work.
 				rest := strings.TrimPrefix(r.URL.Path, "/api/workspaces/")
-				parts := strings.SplitN(rest, "/", 2)
-				if len(parts) != 2 || parts[0] == "" {
+				lastSlash := strings.LastIndex(rest, "/")
+				if lastSlash <= 0 || lastSlash == len(rest)-1 {
 					http.Error(w, "invalid path", 400)
 					return
 				}
-				id, action := parts[0], parts[1]
+				id, action := rest[:lastSlash], rest[lastSlash+1:]
 
 				var term terminal.Backend
 				if app != nil {
