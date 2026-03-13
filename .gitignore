@@ -8,3 +8,14 @@
 
 # Agent instructions — generated, not checked in
 CLAUDE.md
+AGENTS.md
+.cursorrules
+.cursorindexingignore
+
+# Agent tool state — local only
+.claude/
+.superpowers/
+.playwright-mcp/
+
+# Temporary screenshots
+towr-dashboard-*.png
