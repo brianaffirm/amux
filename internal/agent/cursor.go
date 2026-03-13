@@ -3,13 +3,36 @@ package agent
 import "fmt"
 
 // CursorAgent implements the Agent interface for the Cursor CLI (cursor-agent).
-type CursorAgent struct{}
+type CursorAgent struct {
+	ModelFlag string // e.g. "cursor-auto", "cursor-sonnet"
+}
 
-// Name returns "cursor".
-func (c *CursorAgent) Name() string { return "cursor" }
+// Name returns "cursor" or "cursor:<model>" if ModelFlag is set.
+func (c *CursorAgent) Name() string {
+	if c.ModelFlag != "" {
+		return "cursor:" + c.ModelFlag
+	}
+	return "cursor"
+}
+
+// cursorCLIFlag maps towr model names to Cursor's CLI -m flag values.
+var cursorCLIFlags = map[string]string{
+	"cursor-auto":   "auto",
+	"cursor-sonnet": "sonnet-4",
+}
+
+func cursorCLIFlag(model string) string {
+	if f, ok := cursorCLIFlags[model]; ok {
+		return f
+	}
+	return model // pass through unknown names
+}
 
 // LaunchCommand returns the shell command to start the Cursor agent.
 func (c *CursorAgent) LaunchCommand() string {
+	if c.ModelFlag != "" {
+		return "cursor-agent -m " + cursorCLIFlag(c.ModelFlag)
+	}
 	return "cursor-agent"
 }
 
