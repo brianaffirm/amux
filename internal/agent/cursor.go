@@ -31,7 +31,7 @@ func cursorCLIFlag(model string) string {
 // LaunchCommand returns the shell command to start the Cursor agent.
 func (c *CursorAgent) LaunchCommand() string {
 	if c.ModelFlag != "" {
-		return "cursor-agent -m " + cursorCLIFlag(c.ModelFlag)
+		return "cursor-agent --model " + cursorCLIFlag(c.ModelFlag)
 	}
 	return "cursor-agent"
 }
