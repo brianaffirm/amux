@@ -12,7 +12,6 @@ name: "PROJ sprint 24"
 tasks:
   - id: proj-1234
     prompt: "Read Jira ticket PROJ-1234 and implement what it describes. Run tests."
-    model: sonnet                # cheap model for routine implementation
   - id: proj-1235
     prompt: "Read Jira ticket PROJ-1235 and implement it."
     agent: cursor                # use Cursor CLI
@@ -26,19 +25,35 @@ settings:
   web: true                      # live dashboard at :8090
 ```
 
-```bash
-towr run sprint.yaml
-# that's it — spawns agents, approves permissions, creates PRs, shows dashboard
-# morning: 3 PRs ready for your review
 ```
+$ towr run sprint.yaml
+
+Plan: PROJ sprint 24 (3 tasks)
+
+  Task                 Model    Reason                       Est. Cost
+  ──────────────────────────────────────────────────────────────────────
+  proj-1234            sonnet   heuristic:standard           ~$0.48
+  proj-1235            haiku    heuristic:simple             ~$0.04
+  proj-1236            sonnet   heuristic:standard           ~$0.48
+
+  Estimated:  ~$1.00
+  All-opus:   ~$7.20
+  Savings:    ~86%
+
+Proceed? [Y/n]
+```
+
+towr's smart router automatically picks the cheapest model likely to succeed — no `model:` annotation needed. If a task fails on haiku, it escalates to sonnet, then opus. You review PRs in the morning with a cost report showing what you saved.
 
 The YAML can reference anything the agent can read — Jira tickets, GitHub issues, tech specs, design docs, Slack threads. Write it by hand or have Claude generate it from your sprint board.
 
 ## What towr does
 
-**Orchestrate** — Define a YAML task graph. towr spawns isolated workspaces, dispatches prompts to Claude Code sessions, respects dependency order, merges upstream code into dependent tasks, auto-commits, and creates PRs.
+**Run** — `towr run plan.yaml` is the single command. It spawns isolated workspaces, routes each task to the cheapest viable model, dispatches to agents (Claude Code, Cursor, Codex), auto-approves permissions, creates PRs, monitors CI, responds to review comments, and shows a cost report when done.
 
-**Watch** — Long-running monitor that auto-approves permission dialogs, detects CI failures on PRs and re-dispatches fixes, reads `@towr` review comments and dispatches replies, and notifies when PRs are ready to merge.
+**Route smart** — The smart router analyzes each task and picks haiku, sonnet, or opus based on complexity heuristics and policy rules. If a task fails, it escalates to the next tier automatically. Explicit `model:` in YAML always wins. Budget caps (`--budget $10`) stop new tasks when spend exceeds the limit.
+
+**Track cost** — Pre-run estimates show what each task will cost. Post-run reports show actual spend vs. an all-opus baseline — "towr saved you $X." Token usage is parsed from Claude JSONL logs or estimated for other runtimes.
 
 **Land safely** — Validated merge pipeline with pre-land hooks, rebase-ff, protected branch enforcement, and full cleanup. Not a git alias — a pipeline that blocks bad merges.
 
@@ -326,7 +341,7 @@ towr watch --auto-approve
 
 ### Declarative task plans
 
-For multi-step projects with dependencies, define a YAML plan and let towr execute it end-to-end:
+For multi-step projects with dependencies, define a YAML plan and let `towr run` execute it end-to-end:
 
 ```yaml
 # plan.yaml
@@ -345,28 +360,89 @@ tasks:
 settings:
   auto_approve: true
   max_retries: 2
-  land_pr: true       # auto-push + create PR on task completion (workspace stays alive)
+  create_pr: true
+  budget: 5.00        # stop spawning new tasks after $5 spend
+  routing:
+    rules:
+      - match: { path: "internal/**" }
+        model: sonnet  # policy: use sonnet for internal code
 ```
 
 ```bash
-towr orchestrate plan.yaml
-# [19:30:00] Orchestrating "build todo app" (4 tasks, auto-approve: on)
-# [19:30:02] ▶ models: dispatched
-# [19:30:02] ▶ tests: dispatched (no deps)
-# [19:30:30] ✓ models: completed — "Created todo/store.go..."
-# [19:30:30] ▶ cli: dispatched (deps: models ✓)
+towr run plan.yaml
+# Shows routing summary + cost estimate, then:
+# [19:30:00] Running "build todo app" — 4 tasks
+# [19:30:02] ▶ models: dispatched (sonnet, policy:internal/**)
+# [19:30:02] ▶ tests: dispatched (haiku, heuristic:simple)
+# [19:30:30] ✓ models: completed
+# [19:30:30] ▶ cli: dispatched (sonnet, heuristic:standard)
 # [19:31:00] ✓ tests: completed
 # [19:31:15] ✓ cli: completed
-# [19:31:15] ▶ integration: dispatched (deps: models ✓, tests ✓, cli ✓)
-# [19:31:45] ✓ integration: completed — "All tests pass"
-# Plan "build todo app" completed: 4/4 tasks succeeded.
+# [19:31:15] ▶ integration: dispatched (sonnet, heuristic:standard)
+# [19:31:45] ✓ integration: completed
+# [19:31:45] All tasks done.
+#
+# Run complete: 4/4 tasks succeeded (1m45s)
+#   Total:    $1.44
+#   All-opus: $9.60
+#   Saved:    $8.16 (85%)
 ```
 
 When a task's dependencies complete, towr automatically:
 - **Merges dependency branches** into the dependent workspace (so the child Claude has upstream code)
-- **Injects completion summaries** as context into the prompt
 - **Auto-commits** any uncommitted files when a task finishes
-- **Retries** failed tasks up to `max_retries` before marking blocked
+- **Escalates model tier** on failure (haiku → sonnet → opus) before exhausting retries
+- **Creates PRs** when tasks complete (if `create_pr: true`)
+
+### Smart routing
+
+towr picks the cheapest model likely to succeed for each task, so you don't have to annotate every task with `model:`.
+
+**Routing precedence** (first match wins):
+1. Explicit `model:` on the task — always respected, no escalation
+2. Policy rules in `settings.routing.rules` — path globs and keyword matching
+3. `settings.default_model` — if set
+4. Heuristic analysis — word count, file references, architecture keywords
+
+**Heuristics:**
+- Short prompt, single file, no complexity signals → **haiku**
+- Standard implementation (≤ 3 files, no architecture keywords) → **sonnet**
+- System design, 5+ files, refactor/migrate/architect keywords → **opus**
+
+**Escalation on failure:** haiku → sonnet → opus (consumes retry count). Tasks with explicit `model:` don't escalate.
+
+**Policy rules** let you enforce model choices by file path or keyword:
+
+```yaml
+settings:
+  routing:
+    rules:
+      - match: { path: "infrastructure/**" }
+        model: opus
+      - match: { keywords: ["migration", "schema"] }
+        model: sonnet
+```
+
+### Cost intelligence
+
+`towr run` shows estimated cost before execution and actual cost after:
+
+```
+Run complete: 4/4 tasks succeeded (12m30s)
+
+  Task                 Model    Tokens (in/out)    Cost      Saved
+  ──────────────────────────────────────────────────────────────────────
+  auth-middleware       opus     12,450 / 38,200    $3.80     —
+  api-endpoints         sonnet   8,200 / 21,100     $0.34     $2.98
+  unit-tests            haiku    4,100 / 12,800     $0.02     $3.78
+  integration-tests     sonnet   6,300 / 18,900     $0.30     $2.84
+
+  Total:      $4.46
+  All-opus:   $13.40
+  Saved:      $8.94 (67%)
+```
+
+Token usage is parsed from Claude's JSONL session logs when available, or estimated from prompt length for other runtimes.
 
 ### PR monitoring and auto-fix
 
@@ -386,24 +462,20 @@ towr watch --react --all --auto-approve
 The overnight workflow:
 
 ```bash
-# Start the watcher (runs forever in its own tmux session)
-towr spawn "control plane" --id watcher --path /tmp/towr-watcher
-tmux send-keys -t towr/watcher:chat "towr watch --react --all --auto-approve" Enter
-
-# Orchestrate your work plan
-towr orchestrate plan.yaml
-# → tasks complete → PRs created → orchestrate exits
-# → reviewer comments next morning → watch auto-dispatches fixes
-# → CI fails → watch auto-dispatches fixes
-# → approved + green → watch notifies
+towr run plan.yaml
+# → routes tasks to cheapest models
+# → spawns agents, approves permissions, creates PRs
+# → monitors PRs for CI failures and review comments
+# → morning: PRs ready for review + cost report
 ```
 
 | Command | Description |
 |---------|-------------|
-| `towr orchestrate <plan.yaml>` | Execute a declarative task plan with dependencies |
+| `towr run <plan.yaml>` | Execute plan: route, spawn, dispatch, approve, PR, watch — all in one |
+| `towr run <plan.yaml> --budget 10` | Same, but stop new tasks after $10 spend |
+| `towr run <plan.yaml> --quiet` | Skip pre-run routing summary |
 | `towr dispatch <id> "prompt"` | Send task to workspace (interactive default) |
 | `towr dispatch <id> "prompt" --headless` | Autonomous mode via `claude -p` |
-| `towr dispatch <id> "prompt" --wait` | Block until task completes or needs approval |
 | `towr watch --react --all` | Monitor all workspaces + PRs, auto-react to feedback |
 | `towr watch --auto-approve` | Auto-approve permission dialogs |
 | `towr send <id> "message"` | Send follow-up to interactive session |
@@ -467,6 +539,7 @@ All static assets embedded in the Go binary via `embed.FS` — single `go instal
 
 | Command | Description |
 |---------|-------------|
+| `towr run <plan.yaml>` | Execute plan with smart routing, cost tracking, PRs, and monitoring |
 | `towr spawn [task] [--env K=V]` | Create workspace (branch + worktree). No args = auto-ID |
 | `towr adopt [path-or-branch]` | Adopt existing worktree/branch as towr workspace |
 | `towr ls` | List workspaces with diff stats and tree status |

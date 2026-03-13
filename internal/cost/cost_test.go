@@ -130,7 +130,7 @@ func TestFormatPostRun(t *testing.T) {
 		{TaskID: "auth", Model: "opus", Usage: TokenUsage{InputTokens: 12450, OutputTokens: 38200, Source: "jsonl-parsed"}, ActualCost: 3.80, OpusCost: 3.80},
 		{TaskID: "api", Model: "sonnet", Usage: TokenUsage{InputTokens: 8200, OutputTokens: 21100, Source: "jsonl-parsed"}, ActualCost: 0.34, OpusCost: 3.32},
 	}
-	out := FormatPostRun(items, 45*time.Second)
+	out := FormatPostRun(items, 3, 45*time.Second)
 	if !strings.Contains(out, "Total:") {
 		t.Error("should contain total")
 	}

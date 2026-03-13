@@ -192,6 +192,8 @@ func runPlan(app *appContext, plan *orchestrate.Plan, jsonFlag *bool, quiet bool
 					}
 				}
 				if budgetExceeded {
+					st.status = "failed"
+					fmt.Printf("[%s] ○ %s: skipped (budget exceeded)\n", fmtTime(), task.ID)
 					continue
 				}
 				// Spawn + dispatch.
@@ -229,7 +231,7 @@ func runPlan(app *appContext, plan *orchestrate.Plan, jsonFlag *bool, quiet bool
 					}
 				}
 				if len(items) > 0 {
-					fmt.Print(cost.FormatPostRun(items, elapsed))
+					fmt.Print(cost.FormatPostRun(items, len(plan.Tasks), elapsed))
 				} else {
 					printRunSummary(states)
 				}
@@ -518,7 +520,11 @@ func runCheckTask(app *appContext, plan *orchestrate.Plan, task *orchestrate.Tas
 			}
 
 			// Inline re-dispatch with (potentially escalated) model.
-			ag := agent.GetWithModel(st.decision.Model, task.Agent)
+			retryAgent := task.Agent
+			if retryAgent == "" {
+				retryAgent = plan.Settings.DefaultAgent
+			}
+			ag := agent.GetWithModel(st.decision.Model, retryAgent)
 			prompt := task.Prompt + "\n\nWhen you are done:\n1. git add and commit all your changes with a descriptive message\n2. Do not leave uncommitted files."
 
 			go func() {

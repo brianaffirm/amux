@@ -46,11 +46,11 @@ func FormatPreRun(planName string, items []PreRunItem) string {
 	return b.String()
 }
 
-func FormatPostRun(items []PostRunItem, duration time.Duration) string {
+func FormatPostRun(items []PostRunItem, totalTasks int, duration time.Duration) string {
 	var b strings.Builder
 
 	succeeded := len(items)
-	fmt.Fprintf(&b, "\nRun complete: %d/%d tasks succeeded (%s)\n\n", succeeded, succeeded, formatDuration(duration))
+	fmt.Fprintf(&b, "\nRun complete: %d/%d tasks succeeded (%s)\n\n", succeeded, totalTasks, formatDuration(duration))
 	fmt.Fprintf(&b, "  %-20s %-8s %-18s %-9s %s\n", "Task", "Model", "Tokens (in/out)", "Cost", "Saved")
 	fmt.Fprintf(&b, "  %s\n", strings.Repeat("─", 70))
 
