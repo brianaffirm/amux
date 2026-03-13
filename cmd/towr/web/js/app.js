@@ -204,7 +204,8 @@
       html += '<span class="shield" data-shield="' + esc(ws.id) + '"></span>';
       var taskCost = costLookup[ws.id];
       if (taskCost) {
-        html += '<span class="model-badge ' + esc(taskCost.model) + '">' + esc(taskCost.model) + '</span>';
+        var mColor = MODEL_COLORS[taskCost.model] || "var(--text-muted)";
+        html += '<span class="model-badge" style="color:' + mColor + ';background:' + mColor + '1f">' + esc(taskCost.model) + '</span>';
         var isEstimated = taskCost.source === "estimated" || taskCost.source === "unavailable";
         if (isEstimated) {
           html += '<span class="cost-badge" title="Estimated — Cursor/Codex tokens not tracked">~$' + taskCost.cost.toFixed(2) + ' <span class="est-tag">est</span></span>';
@@ -269,8 +270,13 @@
       if (typeof renderActivity === "function") renderActivity(events);
     }).catch(function () {});
     fetch("/api/cost").then(function (r) { return r.json(); }).then(function (data) {
+      var oldTasks = JSON.stringify(costCache.tasks);
       costCache = data;
       renderCostPanel(data);
+      // Re-render workspace list when cost data changes (new badges).
+      if (JSON.stringify(data.tasks) !== oldTasks) {
+        lastJSON = "";
+      }
     }).catch(function () {});
     setTimeout(poll, 4000);
   }
