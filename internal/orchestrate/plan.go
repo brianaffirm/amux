@@ -20,15 +20,21 @@ type Task struct {
 	Prompt    string   `yaml:"prompt"`
 	DependsOn []string `yaml:"depends_on"`
 	Agent     string   `yaml:"agent,omitempty"` // agent runtime override; defaults to settings.default_agent or "claude-code"
+	Model     string   `yaml:"model,omitempty"` // model shorthand: opus, sonnet, cursor, codex — maps to agent + model flag
 }
 
 // Settings controls execution behavior for the plan.
 type Settings struct {
-	AutoApprove  bool   `yaml:"auto_approve"`
-	MaxRetries   int    `yaml:"max_retries"`
-	PollInterval string `yaml:"poll_interval"`    // e.g. "10s"
-	LandPR       bool   `yaml:"land_pr"`          // auto-land each task as a PR when complete
-	DefaultAgent string `yaml:"default_agent,omitempty"` // default agent runtime for tasks without explicit agent
+	AutoApprove    bool   `yaml:"auto_approve"`
+	MaxRetries     int    `yaml:"max_retries"`
+	PollInterval   string `yaml:"poll_interval"`      // e.g. "10s"
+	CreatePR       bool   `yaml:"create_pr"`          // auto-create PR on task completion
+	LandPR         bool   `yaml:"land_pr"`            // deprecated alias for create_pr
+	ReactToReviews bool   `yaml:"react_to_reviews"`   // monitor PRs for @towr comments + CI failures
+	Web            bool   `yaml:"web"`                // start web dashboard
+	WebAddr        string `yaml:"web_addr,omitempty"` // web dashboard address (default :8090)
+	DefaultAgent   string `yaml:"default_agent,omitempty"`
+	DefaultModel   string `yaml:"default_model,omitempty"` // default model: opus, sonnet, etc.
 }
 
 // LoadPlan reads and parses a YAML plan file from the given path.
