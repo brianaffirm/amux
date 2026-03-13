@@ -23,6 +23,10 @@ func TestCalculate(t *testing.T) {
 		{"sonnet", TokenUsage{InputTokens: 10000, OutputTokens: 30000}, 0.48},
 		// Haiku 4.5: 10K × $1/M + 30K × $5/M = $0.01 + $0.15 = $0.16
 		{"haiku", TokenUsage{InputTokens: 10000, OutputTokens: 30000}, 0.16},
+		// Codex-mini: 10K × $0.25/M + 30K × $2.00/M = $0.0025 + $0.06 = $0.0625
+		{"codex-mini", TokenUsage{InputTokens: 10000, OutputTokens: 30000}, 0.0625},
+		// Cursor-auto: 10K × $1.25/M + 30K × $6.00/M = $0.0125 + $0.18 = $0.1925
+		{"cursor-auto", TokenUsage{InputTokens: 10000, OutputTokens: 30000}, 0.1925},
 		{"opus", TokenUsage{InputTokens: 0, OutputTokens: 0}, 0.0},
 	}
 	for _, tt := range tests {
