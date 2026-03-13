@@ -18,6 +18,22 @@ func Get(name string) Agent {
 	return Default()
 }
 
+// GetWithModel returns an agent with an optional model override.
+// The model flag only applies to claude-code (--model sonnet/opus/haiku).
+// Cursor and Codex manage their own models internally.
+func GetWithModel(model, agentName string) Agent {
+	ag := Get(agentName)
+
+	// Model flag only applies to claude-code.
+	if model != "" {
+		if agentName == "" || agentName == "claude-code" {
+			return &ClaudeCode{ModelFlag: model}
+		}
+		// For other agents, model is ignored (they manage their own).
+	}
+	return ag
+}
+
 // Register adds an agent to the registry.
 func Register(name string, a Agent) {
 	registry[name] = a

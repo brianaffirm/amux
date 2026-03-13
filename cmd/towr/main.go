@@ -138,6 +138,7 @@ func run() error {
 		newReportCmd(initApp, &jsonFlag),
 		newPromoteCmd(initApp, &jsonFlag),
 		newOrchestrateCmd(initApp, &jsonFlag),
+		newRunCmd(initApp, &jsonFlag),
 		newAuditCmd(initApp, &jsonFlag),
 		newWebCmd(initApp, &jsonFlag),
 	)
