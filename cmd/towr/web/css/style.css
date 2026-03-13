@@ -325,26 +325,35 @@ header h1 {
 }
 .evt-row {
   display: flex;
+  align-items: baseline;
   gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-md);
-  font-size: 0.7rem;
-  border-top: 1px solid var(--border);
-  color: var(--text-secondary);
+  padding: 6px var(--space-md);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--border);
 }
-.evt-ts { color: var(--text-muted); white-space: nowrap; }
-.evt-ws { font-weight: 600; color: var(--text-link); }
-.evt-kind { font-weight: 600; }
-.evt-dot { font-size: 0.5rem; flex-shrink: 0; }
-.evt-desc { color: var(--text-primary); }
-.evt-new { animation: evt-flash 1s ease-out; }
-.evt-approval { color: var(--accent-green); font-weight: 600; }
-.evt-block { color: var(--accent-red); font-weight: 600; }
+.evt-row:last-child { border-bottom: none; }
+.evt-ts { color: var(--text-muted); white-space: nowrap; min-width: 55px; font-size: 0.65rem; }
+.evt-icon { flex-shrink: 0; width: 14px; text-align: center; font-size: 0.7rem; }
+.evt-ws {
+  font-weight: 600; color: var(--accent-blue); min-width: 80px;
+  font-size: 0.7rem; background: var(--accent-blue-bg, rgba(88,166,255,0.1));
+  padding: 1px 6px; border-radius: 3px;
+}
+.evt-desc {
+  color: var(--text-secondary); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.7rem;
+}
+.evt-approval-row { background: rgba(63,185,80,0.04); }
+.evt-approval-row .evt-desc { color: var(--accent-green); }
 .evt-bypass {
   border-left: 3px solid var(--accent-red);
   padding-left: var(--space-sm);
+  background: rgba(248,81,73,0.04);
 }
 .evt-bypass-tag {
-  background: rgba(248, 81, 73, 0.2);
+  background: rgba(248,81,73,0.15);
   color: var(--accent-red);
   font-size: 0.6rem;
   font-weight: 700;

@@ -1,17 +1,6 @@
-/* Activity feed — reverse-chronological audit trail for towr dashboard */
+/* Activity feed — clean, grouped audit trail */
 (function() {
   "use strict";
-
-  var DOT_CLASSES = {
-    "task.dispatched": "evt-dot-blue", "task.started": "evt-dot-blue",
-    "task.completed": "evt-dot-green", "workspace.landed": "evt-dot-green",
-    "task.approved": "evt-dot-green",
-    "task.failed": "evt-dot-red",
-    "task.blocked": "evt-dot-yellow"
-  };
-  var DEFAULT_DOT_CLASS = "evt-dot-muted";
-
-  var prevIds = {};
 
   function esc(s) {
     var d = document.createElement("span");
@@ -28,79 +17,123 @@
     return Math.floor(diff / 86400) + "d ago";
   }
 
+  function truncate(s, n) {
+    if (!s) return "";
+    return s.length > n ? s.substring(0, n) + "..." : s;
+  }
+
+  function isBypass(kind) {
+    return kind && (kind.indexOf("forced") !== -1 || kind.indexOf("hooks_skipped") !== -1);
+  }
+
+  // Collapse consecutive approval events into a single line
+  function groupEvents(events) {
+    var result = [];
+    var approvalRun = null;
+
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (ev.kind === "task.approved") {
+        if (approvalRun && approvalRun.ws === ev.workspace_id) {
+          approvalRun.count++;
+          approvalRun.last = ev;
+        } else {
+          if (approvalRun) result.push(approvalRun);
+          approvalRun = { type: "approval_group", ws: ev.workspace_id, count: 1, first: ev, last: ev };
+        }
+      } else {
+        if (approvalRun) { result.push(approvalRun); approvalRun = null; }
+        result.push({ type: "event", ev: ev });
+      }
+    }
+    if (approvalRun) result.push(approvalRun);
+    return result;
+  }
+
   function describeEvent(ev) {
     var d = ev.data || {};
+    var summary = d.summary || d.message || "";
+    // Clean up raw terminal output from summaries
+    if (summary.indexOf("\u23FA") >= 0 || summary.indexOf("\u2502") >= 0 || summary.indexOf("─") >= 0) {
+      // Raw terminal garbage — extract first meaningful sentence
+      var clean = summary.replace(/[\u23FA\u2502─┌┐└┘│▶▷▸▹►▻⏺•●○◌◍◎●]+/g, " ").replace(/\s+/g, " ").trim();
+      summary = truncate(clean, 120);
+    }
     switch (ev.kind) {
-      case "task.dispatched":  return "Dispatched to " + (ev.workspace_id || "?");
-      case "task.started":     return "Started working";
-      case "task.completed":   return "Completed: " + (d.summary || d.message || "-");
-      case "task.failed":      return "Failed: " + (d.summary || d.message || "-");
-      case "task.blocked":     return "Blocked: " + (d.dialog || d.message || "-");
-      case "task.approved":    return "Approved: " + (d.summary || d.message || "-");
-      case "workspace.created": return "Workspace created";
-      case "workspace.landed": return "Landed (merged)";
-      default:                 return ev.kind;
+      case "task.dispatched": return "Dispatched";
+      case "task.started": return "Working";
+      case "task.completed": return truncate(summary, 100) || "Completed";
+      case "task.failed": return "Failed: " + truncate(summary, 80);
+      case "task.blocked": return "Blocked" + (d.dialog ? ": " + truncate(d.dialog, 60) : "");
+      case "workspace.created": return "Created";
+      case "workspace.landed": return "Landed";
+      default: return ev.kind;
     }
   }
 
-  function eventKey(ev) {
-    return (ev.id || "") + ":" + ev.kind + ":" + ev.ts;
-  }
-
-  function isBypassEvent(kind) {
-    return kind.indexOf("forced") !== -1 || kind.indexOf("hooks_skipped") !== -1;
-  }
-
-  // Toggle drawer
+  // Toggle
   document.getElementById("actToggle").addEventListener("click", function() {
     this.classList.toggle("open");
     document.getElementById("actFeed").classList.toggle("open");
   });
 
+  var lastCount = 0;
   window.renderActivity = function(events) {
-    var feed = document.getElementById("actFeed");
     var countEl = document.getElementById("actCount");
-    var list = events || [];
+    var feed = document.getElementById("actFeed");
+    if (!events || events.length === lastCount) return;
+    lastCount = events.length;
+    countEl.textContent = "(" + events.length + ")";
 
-    countEl.textContent = "(" + list.length + ")";
-
-    var newIds = {};
+    var grouped = groupEvents(events);
     var html = "";
 
-    list.forEach(function(ev) {
-      var key = eventKey(ev);
-      newIds[key] = true;
-      var isNew = !prevIds[key];
-      var kind = ev.kind || "";
-      var bypass = isBypassEvent(kind);
-      var isApproval = kind === "task.approved" || kind === "queue.resolved";
-      var isBlock = kind.indexOf("blocked") !== -1;
-      var dotClass = DOT_CLASSES[kind] || DEFAULT_DOT_CLASS;
-      var ws = ev.workspace_id || "-";
-      var rowClass = "evt-row" + (isNew ? " evt-new" : "") + (bypass ? " evt-bypass" : "");
+    for (var i = 0; i < grouped.length; i++) {
+      var item = grouped[i];
 
-      if (bypass) dotClass = "evt-dot-red";
-
-      html += '<div class="' + rowClass + '">';
-      html += '<span class="evt-ts">' + esc(relativeTime(ev.ts)) + '</span>';
-      if (isApproval) {
-        html += '<span class="evt-dot evt-approval">\u2713</span>';
-      } else if (isBlock) {
-        html += '<span class="evt-dot evt-block">\u2717</span>';
-      } else {
-        html += '<span class="evt-dot ' + dotClass + '">\u25CF</span>';
+      if (item.type === "approval_group") {
+        html += '<div class="evt-row evt-approval-row">';
+        html += '<span class="evt-ts">' + esc(relativeTime(item.first.ts)) + '</span>';
+        html += '<span class="evt-icon" style="color:var(--accent-green)">✓</span>';
+        html += '<span class="evt-ws">' + esc(item.ws) + '</span>';
+        html += '<span class="evt-desc">' + item.count + ' auto-approval' + (item.count > 1 ? 's' : '') + '</span>';
+        html += '</div>';
+        continue;
       }
-      html += '<span class="evt-ws">' + esc(ws) + '</span>';
-      var desc = describeEvent(ev);
-      if (isApproval && ev.data && ev.data.command) desc = "Approved: " + ev.data.command;
-      if (isBlock && ev.data && ev.data.command) desc = "Blocked: " + ev.data.command;
-      html += '<span class="evt-desc">' + esc(desc);
+
+      var ev = item.ev;
+      var kind = ev.kind || "";
+      var bypass = isBypass(kind);
+      var cls = "evt-row";
+      if (bypass) cls += " evt-bypass";
+
+      var icon, iconColor;
+      switch (kind) {
+        case "task.completed":
+        case "workspace.landed":
+          icon = "●"; iconColor = "var(--accent-green)"; break;
+        case "task.failed":
+          icon = "●"; iconColor = "var(--accent-red)"; break;
+        case "task.dispatched":
+        case "task.started":
+          icon = "●"; iconColor = "var(--accent-blue)"; break;
+        case "task.blocked":
+          icon = "⚠"; iconColor = "var(--accent-yellow)"; break;
+        default:
+          icon = "●"; iconColor = "var(--text-muted)"; break;
+      }
+      if (bypass) { icon = "⚠"; iconColor = "var(--accent-red)"; }
+
+      html += '<div class="' + cls + '">';
+      html += '<span class="evt-ts">' + esc(relativeTime(ev.ts)) + '</span>';
+      html += '<span class="evt-icon" style="color:' + iconColor + '">' + icon + '</span>';
+      html += '<span class="evt-ws">' + esc(ev.workspace_id || "-") + '</span>';
+      html += '<span class="evt-desc">' + esc(describeEvent(ev));
       if (bypass) html += ' <span class="evt-bypass-tag">[BYPASS]</span>';
       html += '</span>';
       html += '</div>';
-    });
+    }
 
     feed.innerHTML = html;
-    prevIds = newIds;
   };
 })();

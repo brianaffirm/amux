@@ -82,18 +82,37 @@
     evtSource = new EventSource("/stream/" + encodeURIComponent(id));
     evtSource.onmessage = function(e) {
       var text = e.data;
+      // Remember if user scrolled up (don't auto-scroll if they're reading)
+      var isAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 50;
+
       if (rawMode) {
-        body.innerHTML = '<pre class="raw-output">' + esc(text) + '</pre>';
+        // Raw mode: append new content, keep existing
+        var pre = body.querySelector(".raw-output");
+        if (!pre) {
+          pre = document.createElement("pre");
+          pre.className = "raw-output";
+          body.innerHTML = "";
+          body.appendChild(pre);
+        }
+        pre.textContent = text;
       } else {
-        // Try to parse structured steps
         var steps = parseSteps(text);
         if (steps.length > 0) {
           body.innerHTML = renderSteps(steps);
         } else {
-          body.innerHTML = '<pre class="raw-output">' + esc(text) + '</pre>';
+          // No structured steps — show as formatted raw
+          var pre = body.querySelector(".raw-output");
+          if (!pre) {
+            pre = document.createElement("pre");
+            pre.className = "raw-output";
+            body.innerHTML = "";
+            body.appendChild(pre);
+          }
+          pre.textContent = text;
         }
       }
-      body.scrollTop = body.scrollHeight;
+      // Only auto-scroll if user was at the bottom
+      if (isAtBottom) body.scrollTop = body.scrollHeight;
     };
     evtSource.onerror = function() {
       if (evtSource && evtSource.readyState === EventSource.CLOSED) {
