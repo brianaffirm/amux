@@ -18,26 +18,20 @@ func Get(name string) Agent {
 	return Default()
 }
 
-// GetWithModel returns an agent for the given model shorthand.
-// Maps: "opus" → ClaudeCode{opus}, "sonnet" → ClaudeCode{sonnet},
-// "cursor" → CursorAgent, "codex" → CodexAgent.
-// Falls back to Get(name) for unknown models.
+// GetWithModel returns an agent with an optional model override.
+// The model flag only applies to claude-code (--model sonnet/opus/haiku).
+// Cursor and Codex manage their own models internally.
 func GetWithModel(model, agentName string) Agent {
-	// Model takes precedence if specified.
+	ag := Get(agentName)
+
+	// Model flag only applies to claude-code.
 	if model != "" {
-		switch model {
-		case "opus", "sonnet", "haiku":
-			return &ClaudeCode{ModelFlag: model}
-		case "cursor":
-			return Get("cursor")
-		case "codex":
-			return Get("codex")
-		default:
-			// Assume it's a full model ID for claude-code.
+		if agentName == "" || agentName == "claude-code" {
 			return &ClaudeCode{ModelFlag: model}
 		}
+		// For other agents, model is ignored (they manage their own).
 	}
-	return Get(agentName)
+	return ag
 }
 
 // Register adds an agent to the registry.
