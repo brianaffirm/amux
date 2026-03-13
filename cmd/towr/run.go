@@ -192,10 +192,13 @@ func runSpawnAndDispatch(app *appContext, plan *orchestrate.Plan, task *orchestr
 	}
 
 	var agentIdentity *workspace.AgentIdentity
-	agentName := ag.Name()
-	if agentName != "" {
-		agentIdentity = &workspace.AgentIdentity{Runtime: agentName}
+	// Store the base agent runtime (e.g. "claude-code"), not the model-suffixed
+	// name (e.g. "claude-code:sonnet") — the registry looks up by base name.
+	runtimeName := agentType
+	if runtimeName == "" {
+		runtimeName = "claude-code"
 	}
+	agentIdentity = &workspace.AgentIdentity{Runtime: runtimeName}
 
 	ws, err := app.manager.Create(workspace.CreateOpts{
 		ID:         task.ID,
@@ -237,11 +240,8 @@ func runSpawnAndDispatch(app *appContext, plan *orchestrate.Plan, task *orchestr
 	fmt.Printf("[%s] ▶ %s: dispatched (%s)\n", fmtTime(), task.ID, ag.Name())
 
 	dispID := fmt.Sprintf("d-%04d", 1)
-	_ = app.store.EmitEvent(store.Event{
-		ID: uuid.New().String(), Kind: store.EventTaskDispatched,
-		WorkspaceID: task.ID, RepoRoot: app.repoRoot, Timestamp: time.Now().UTC(),
-		Data: map[string]interface{}{"dispatch_id": dispID, "prompt": prompt, "model": model, "agent": agentName},
-	})
+	// Note: do NOT emit task.dispatched event here — it would block towr dispatch
+	// if we ever fall back to it. The event is emitted by dispatch itself.
 
 	// Launch agent and keep approving dialogs until task completes.
 	go func() {
