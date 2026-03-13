@@ -15,10 +15,10 @@ func (c *CursorAgent) Name() string {
 	return "cursor"
 }
 
-// cursorCLIFlag maps towr model names to Cursor's CLI -m flag values.
+// cursorCLIFlag maps towr model names to Cursor's CLI --model flag values.
 var cursorCLIFlags = map[string]string{
 	"cursor-auto":   "auto",
-	"cursor-sonnet": "sonnet-4",
+	"cursor-sonnet": "sonnet-4.6",
 }
 
 func cursorCLIFlag(model string) string {
