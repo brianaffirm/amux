@@ -15,7 +15,12 @@
   var MODEL_COLORS = {
       haiku: "#58a6ff",
       sonnet: "#a78bfa",
-      opus: "#f59e0b"
+      opus: "#f59e0b",
+      "codex-mini": "#10b981",
+      "gpt-5.3-codex": "#10b981",
+      "gpt-5.4": "#10b981",
+      "cursor-auto": "#06b6d4",
+      "cursor-sonnet": "#06b6d4"
   };
 
   function statusColor(s) { return STATUS_COLORS[(s || "").toUpperCase()] || DEFAULT_COLOR; }
@@ -144,10 +149,18 @@
 
       var html = '<div class="cost-panel-header">';
       html += '<span class="cost-panel-title">Cost Intelligence</span>';
-      html += '<span class="cost-panel-savings">' + Math.round(data.savingsPercent) + '% saved</span>';
+      html += '<span class="cost-panel-savings">' + Math.round(data.savingsPercent) + '% saved vs opus</span>';
       html += '</div>';
       html += '<div class="cost-panel-body">';
-      html += '<span><span class="label">Spent:</span><span class="value green">$' + data.totalSpent.toFixed(2) + '</span></span>';
+      html += '<span><span class="label">Estimated:</span><span class="value">~$' + data.totalEstimated.toFixed(2) + '</span></span>';
+      html += '<span><span class="label">Actual:</span><span class="value green">$' + data.totalSpent.toFixed(2) + '</span></span>';
+      // Show diff: over or under estimate
+      var diff = data.totalSpent - data.totalEstimated;
+      if (Math.abs(diff) >= 0.01) {
+          var diffSign = diff > 0 ? "+" : "";
+          var diffColor = diff > 0 ? "var(--accent-yellow)" : "var(--accent-green)";
+          html += '<span><span class="label">Diff:</span><span class="value" style="color:' + diffColor + '">' + diffSign + diff.toFixed(2) + '</span></span>';
+      }
       html += '<span><span class="label">All-opus:</span><span class="value muted">$' + data.totalOpus.toFixed(2) + '</span></span>';
       html += '<span><span class="label">Saved:</span><span class="value green">$' + data.totalSaved.toFixed(2) + '</span></span>';
       html += '</div>';
@@ -192,7 +205,12 @@
       var taskCost = costLookup[ws.id];
       if (taskCost) {
         html += '<span class="model-badge ' + esc(taskCost.model) + '">' + esc(taskCost.model) + '</span>';
-        html += '<span class="cost-badge">$' + taskCost.cost.toFixed(2) + '</span>';
+        var isEstimated = taskCost.source === "estimated" || taskCost.source === "unavailable";
+        if (isEstimated) {
+          html += '<span class="cost-badge" title="Estimated — Cursor/Codex tokens not tracked">~$' + taskCost.cost.toFixed(2) + ' <span class="est-tag">est</span></span>';
+        } else {
+          html += '<span class="cost-badge">$' + taskCost.cost.toFixed(2) + '</span>';
+        }
       }
       html += '<span class="ws-badge" style="color:' + c + ';background:' + c + '22">' + esc(ws.status) + '</span>';
       if (ws.diff && ws.diff !== "-") html += '<span class="ws-agent">' + esc(ws.diff) + '</span>';
