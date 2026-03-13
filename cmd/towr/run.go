@@ -54,9 +54,10 @@ PRs for CI failures and review comments.`,
 }
 
 type runTaskState struct {
-	status  string // pending, spawning, running, completed, failed
-	retries int
-	dispID  string
+	status    string // pending, spawning, running, completed, failed
+	retries   int
+	dispID    string
+	startedAt time.Time // when dispatch started — grace period before checking
 }
 
 func runPlan(app *appContext, plan *orchestrate.Plan, jsonFlag *bool) error {
@@ -252,9 +253,15 @@ func runSpawnAndDispatch(app *appContext, plan *orchestrate.Plan, task *orchestr
 
 	st.status = "running"
 	st.dispID = dispID
+	st.startedAt = time.Now()
 }
 
 func runCheckTask(app *appContext, plan *orchestrate.Plan, task *orchestrate.Task, st *runTaskState, maxRetries int) {
+	// Grace period: don't check until agent has had time to start.
+	if time.Since(st.startedAt) < 45*time.Second {
+		return
+	}
+
 	sw, err := app.store.GetWorkspace(app.repoRoot, task.ID)
 	if err != nil || sw == nil {
 		return
@@ -337,11 +344,18 @@ func runCheckTask(app *appContext, plan *orchestrate.Plan, task *orchestrate.Tas
 		// Auto-approve handled separately in runAutoApprove.
 
 	case dispatch.PaneEmpty:
-		// Agent exited. Retry or fail.
+		// Agent exited. Re-dispatch (workspace already exists) or fail.
 		st.retries++
 		if st.retries <= maxRetries {
-			fmt.Printf("[%s] ⚠ %s: agent exited, retrying (%d/%d)\n", fmtTime(), task.ID, st.retries, maxRetries)
-			st.status = "pending"
+			fmt.Printf("[%s] ⚠ %s: agent exited, re-dispatching (%d/%d)\n", fmtTime(), task.ID, st.retries, maxRetries)
+			towrBin, _ := os.Executable()
+			prompt := task.Prompt + "\n\nWhen you are done:\n1. git add and commit all your changes with a descriptive message\n2. Do not leave uncommitted files."
+			go func() {
+				cmd := exec.Command(towrBin, "dispatch", task.ID, prompt)
+				cmd.Dir = app.repoRoot
+				_ = cmd.Run()
+			}()
+			st.startedAt = time.Now()
 		} else {
 			fmt.Printf("[%s] ✗ %s: agent exited, no retries left\n", fmtTime(), task.ID)
 			st.status = "failed"
