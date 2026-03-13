@@ -20,6 +20,9 @@
 
   function badgeBg(color) { return color + "22"; }
 
+  var activeId = null;
+  var evtSource = null;
+
   function esc(s) {
     var d = document.createElement("span");
     d.textContent = s;
@@ -27,33 +30,6 @@
   }
 
   var startTime = new Date();
-  var safetyCache = {};
-
-  function fetchSafety(id) {
-    fetch("/api/workspace/" + encodeURIComponent(id) + "/safety")
-      .then(function(r) { return r.json(); })
-      .then(function(s) { safetyCache[id] = s; updateShield(id, s); })
-      .catch(function() {});
-  }
-
-  function shieldInfo(s) {
-    if (s.bypasses > 0) return { icon: "\uD83D\uDEE1\uFE0F", color: "#f85149", label: "bypass detected" };
-    if (s.approvals > 0) return { icon: "\uD83D\uDEE1\uFE0F", color: "#d29922", label: s.approvals + " approval" + (s.approvals > 1 ? "s" : "") };
-    return { icon: "\uD83D\uDEE1\uFE0F", color: "#3fb950", label: "sandboxed" };
-  }
-
-  function updateShield(id, s) {
-    var el = document.querySelector('[data-shield="' + id + '"]');
-    if (!el) return;
-    var info = shieldInfo(s);
-    el.style.color = info.color;
-    var details = esc(info.label);
-    if (s.approvals) details += ' · ' + s.approvals + ' approved';
-    if (s.bypasses) details += ' · ' + s.bypasses + ' bypass';
-    el.style.color = info.color;
-    el.title = 'agent: ' + (s.agent || 'unknown') + '\nsandbox: ' + (s.sandbox || 'unknown') + '\napprovals: ' + (s.approvals || 0) + '\nbypasses: ' + (s.bypasses || 0);
-    el.innerHTML = info.icon + ' <span class="shield-label" style="color:' + info.color + '">' + details + '</span>';
-  }
 
   function renderStats(data) {
     var total = (data || []).length;
@@ -69,21 +45,12 @@
     var uptimeMin = Math.floor(uptimeSec / 60);
     var uptimeStr = uptimeMin > 0 ? uptimeMin + "m " + (uptimeSec % 60) + "s" : uptimeSec + "s";
     var timeStr = now.toLocaleTimeString();
-    var totalApprovals = 0, totalBypasses = 0;
-    Object.keys(safetyCache).forEach(function(k) {
-      totalApprovals += (safetyCache[k].approvals || 0);
-      totalBypasses += (safetyCache[k].bypasses || 0);
-    });
-    var bypassColor = totalBypasses > 0 ? "#f85149" : "#3fb950";
-    var bypassClass = totalBypasses > 0 ? ' stat-pulse' : '';
     var bar = document.getElementById("statsBar");
     bar.innerHTML =
       '<span class="stat-pill" style="color:#c9d1d9;background:#30363d">' + total + ' total</span>' +
       '<span class="stat-pill" style="color:#58a6ff;background:#58a6ff22">' + working + ' working</span>' +
       '<span class="stat-pill" style="color:#8b949e;background:#8b949e22">' + idle + ' idle</span>' +
       '<span class="stat-pill" style="color:#f85149;background:#f8514922">' + blocked + ' blocked</span>' +
-      '<span class="stat-pill" style="color:#3fb950;background:#3fb95022">' + totalApprovals + ' approvals</span>' +
-      '<span class="stat-pill' + bypassClass + '" style="color:' + bypassColor + ';background:' + bypassColor + '22">' + totalBypasses + ' bypasses</span>' +
       '<span class="stat-meta">uptime ' + esc(uptimeStr) + ' &middot; refreshed ' + esc(timeStr) + '</span>';
   }
 
@@ -110,11 +77,10 @@
       html += '<div class="cards">';
       items.forEach(function(ws) {
         var c = statusColor(ws.status);
-        var isActive = ws.id === window.activeTerminalId;
+        var isActive = ws.id === activeId;
         html += '<div class="card' + (isActive ? ' active' : '') + '" data-id="' + esc(ws.id) + '">';
         html += '<div class="card-top">';
         html += '<span class="card-id">' + esc(ws.id) + '</span>';
-        html += '<span class="shield" data-shield="' + esc(ws.id) + '"></span>';
         html += '<span class="badge" style="color:' + esc(c) + ';background:' + badgeBg(c) + '">' + esc(ws.status) + '</span>';
         html += '</div>';
         html += '<div class="card-details">';
@@ -137,21 +103,10 @@
     if (!hasAny) {
       html = '<div class="empty-state">No workspaces found.</div>';
     }
-    // Only rebuild DOM if content actually changed (prevents flicker and interaction loss).
-    var sidebar = document.getElementById("sidebar");
-    if (sidebar._lastHTML !== html) {
-      sidebar._lastHTML = html;
-      sidebar.innerHTML = html;
-    }
+    document.getElementById("sidebar").innerHTML = html;
 
     document.querySelectorAll(".card").forEach(function(el) {
-      el.addEventListener("click", function(e) {
-        // Don't open terminal when clicking on shield, buttons, or inputs
-        if (e.target.closest(".shield, .shield-label, button, input")) return;
-        var id = el.getAttribute("data-id");
-        window.activeTerminalId = id;
-        window.openTerminal(id, id);
-      });
+      el.addEventListener("click", function() { openTerminal(el.getAttribute("data-id")); });
     });
     document.querySelectorAll("[data-approve]").forEach(function(btn) {
       btn.addEventListener("click", function(e) {
@@ -159,8 +114,6 @@
         fetch("/api/workspaces/" + encodeURIComponent(btn.getAttribute("data-approve")) + "/approve", {method:"POST"});
       });
     });
-    // Fetch safety status for each workspace
-    (data || []).forEach(function(ws) { fetchSafety(ws.id); });
     document.querySelectorAll("[data-send]").forEach(function(btn) {
       btn.addEventListener("click", function(e) {
         e.stopPropagation();
@@ -176,17 +129,73 @@
     });
   }
 
+  function openTerminal(id) {
+    activeId = id;
+    var panel = document.getElementById("termPanel");
+    var body = document.getElementById("termBody");
+    var title = document.getElementById("termTitle");
+    panel.classList.add("open");
+    title.textContent = id;
+    body.textContent = "connecting...";
 
-  // Export audit CSV
-  document.getElementById("exportAudit").addEventListener("click", function() {
-    window.location.href = "/api/audit/export?format=csv&since=168h";
+    if (evtSource) { evtSource.close(); evtSource = null; }
+    evtSource = new EventSource("/stream/" + encodeURIComponent(id));
+    evtSource.onmessage = function(e) {
+      body.textContent = "";
+      var lines = e.data.split("\n");
+      body.textContent = lines.join("\n");
+      body.scrollTop = body.scrollHeight;
+    };
+    evtSource.onerror = function() {
+      body.textContent += "\n[stream disconnected]";
+    };
+
+    document.querySelectorAll(".card").forEach(function(el) {
+      el.classList.toggle("active", el.getAttribute("data-id") === id);
+    });
+  }
+
+  document.getElementById("termClose").addEventListener("click", function() {
+    document.getElementById("termPanel").classList.remove("open");
+    if (evtSource) { evtSource.close(); evtSource = null; }
+    activeId = null;
+    document.querySelectorAll(".card.active").forEach(function(el) { el.classList.remove("active"); });
   });
+
+  var EVENT_COLORS = {
+    "task.completed": "#3fb950", "task.failed": "#f85149",
+    "task.dispatched": "#58a6ff", "task.blocked": "#d29922"
+  };
+
+  document.getElementById("actToggle").addEventListener("click", function() {
+    this.classList.toggle("open");
+    document.getElementById("actFeed").classList.toggle("open");
+  });
+
+  function renderEvents(events) {
+    var feed = document.getElementById("actFeed");
+    var countEl = document.getElementById("actCount");
+    countEl.textContent = "(" + (events||[]).length + " events)";
+    var html = "";
+    (events||[]).forEach(function(ev) {
+      var ts = new Date(ev.ts).toLocaleTimeString();
+      var c = EVENT_COLORS[ev.kind] || "#8b949e";
+      var summary = "";
+      if (ev.data && ev.data.summary) summary = ev.data.summary;
+      else if (ev.data && ev.data.message) summary = ev.data.message;
+      html += '<div class="evt-row">';
+      html += '<span class="evt-ts">' + esc(ts) + '</span>';
+      html += '<span class="evt-ws">' + esc(ev.workspace_id||"-") + '</span>';
+      html += '<span class="evt-kind" style="color:' + c + '">' + esc(ev.kind) + '</span>';
+      html += '<span>' + esc(summary) + '</span>';
+      html += '</div>';
+    });
+    feed.innerHTML = html;
+  }
 
   function poll() {
     fetch("/api/workspaces").then(function(r) { return r.json(); }).then(render).catch(function() {});
-    fetch("/api/events").then(function(r) { return r.json(); }).then(function(events) {
-      if (typeof renderActivity === "function") renderActivity(events);
-    }).catch(function() {});
+    fetch("/api/events").then(function(r) { return r.json(); }).then(renderEvents).catch(function() {});
     setTimeout(poll, 5000);
   }
   poll();

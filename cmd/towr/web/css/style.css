@@ -33,9 +33,6 @@ header h1 { font-size: 1.1rem; color: #58a6ff; font-weight: 600; }
   flex: 1; overflow-y: auto; padding: 0.75rem; font-size: 0.75rem;
   line-height: 1.4; white-space: pre-wrap; color: #8b949e;
 }
-.terminal-body .term-error { color: #f85149; }
-.terminal-body .term-pass { color: #3fb950; }
-.terminal-body .term-dim { color: #484f58; }
 
 .zone { margin-bottom: 1.5rem; }
 .zone-title {
@@ -104,37 +101,6 @@ header h1 { font-size: 1.1rem; color: #58a6ff; font-weight: 600; }
 .evt-ts { color: #484f58; white-space: nowrap; }
 .evt-ws { font-weight: 600; color: #58a6ff; }
 .evt-kind { font-weight: 600; }
-.evt-dot { font-size: 0.5rem; flex-shrink: 0; }
-.evt-desc { color: #c9d1d9; }
-.evt-new { animation: evt-flash 1s ease-out; }
-@keyframes evt-flash {
-  0% { background: #30363d; }
-  100% { background: transparent; }
-}
-
-/* Header layout */
-.header-right { display: flex; align-items: center; gap: 1rem; }
-.btn-ghost {
-  background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 4px;
-  padding: 3px 10px; cursor: pointer; font-family: inherit; font-size: 0.7rem;
-}
-.btn-ghost:hover { color: #c9d1d9; border-color: #484f58; }
-
-/* Safety shield on cards */
-.shield { cursor: pointer; font-size: 0.85rem; margin-left: 0.5rem; position: relative; display: inline-flex; align-items: center; gap: 0.3rem; }
-.shield-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.03em; opacity: 0.9; }
-/* Shield tooltip uses native title attribute — no custom CSS needed */
-
-/* Safety stat pulse */
-@keyframes pulse-red { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-.stat-pulse { animation: pulse-red 1.5s ease-in-out infinite; }
-
-/* Activity: approval/bypass styling */
-.evt-approval { color: #3fb950; font-weight: 600; }
-.evt-block { color: #f85149; font-weight: 600; }
-.evt-bypass { border-left: 3px solid #f85149; padding-left: 0.6rem; }
-.evt-bypass-tag { background: #f8514933; color: #f85149; font-size: 0.6rem;
-  font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 0.3rem; }
 
 @media (max-width: 768px) {
   .layout { flex-direction: column; }
