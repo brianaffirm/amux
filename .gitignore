@@ -17,5 +17,8 @@ AGENTS.md
 .superpowers/
 .playwright-mcp/
 
+# Superpowers specs/plans belong in coflow, not this repo
+docs/superpowers/
+
 # Temporary screenshots
 towr-dashboard-*.png
