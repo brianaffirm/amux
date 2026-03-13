@@ -19,19 +19,20 @@ func Get(name string) Agent {
 }
 
 // GetWithModel returns an agent with an optional model override.
-// The model flag only applies to claude-code (--model sonnet/opus/haiku).
-// Cursor and Codex manage their own models internally.
+// Constructs a new instance (not the registered singleton) so ModelFlag
+// is set without shared-state mutation.
 func GetWithModel(model, agentName string) Agent {
-	ag := Get(agentName)
-
-	// Model flag only applies to claude-code.
-	if model != "" {
-		if agentName == "" || agentName == "claude-code" {
+	switch agentName {
+	case "codex":
+		return &CodexAgent{ModelFlag: model}
+	case "cursor":
+		return &CursorAgent{ModelFlag: model}
+	default: // claude-code or empty
+		if model != "" {
 			return &ClaudeCode{ModelFlag: model}
 		}
-		// For other agents, model is ignored (they manage their own).
+		return Default()
 	}
-	return ag
 }
 
 // Register adds an agent to the registry.
