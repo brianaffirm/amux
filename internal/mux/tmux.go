@@ -86,7 +86,11 @@ func BuildKeybindingCommands(cfg MuxConfig) []TmuxCmd {
 		"set", "-t", session, "status-style", "bg=colour57,fg=white",
 	}})
 
-	// Key bindings (global — tmux bind-key has no session-scope flag).
+	// Key bindings — guarded with if-shell so they only fire inside the
+	// towr-mux session. tmux bind-key is global (no session-scope flag),
+	// so without the guard these would affect unrelated tmux sessions.
+	guard := fmt.Sprintf(`[ "$(tmux display -p '#S')" = "%s" ]`, session)
+
 	// Focus next/prev pane with dynamic resizing.
 	// Shell one-liner: select pane, then resize focused to 60%, control to 20%.
 	// Only resizes when 3+ panes exist (control + 2 others).
@@ -105,30 +109,30 @@ func BuildKeybindingCommands(cfg MuxConfig) []TmuxCmd {
 		`fi`
 
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"bind", "Right", "run-shell", fmt.Sprintf(focusScript, "+"),
+		"bind", "Right", "if-shell", guard, fmt.Sprintf("run-shell '%s'", fmt.Sprintf(focusScript, "+")), "select-pane -t :.+",
 	}})
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"bind", "Left", "run-shell", fmt.Sprintf(focusScript, "-"),
+		"bind", "Left", "if-shell", guard, fmt.Sprintf("run-shell '%s'", fmt.Sprintf(focusScript, "-")), "select-pane -t .:.-",
 	}})
 
 	// Zoom toggle.
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"bind", "Enter", "resize-pane", "-Z",
+		"bind", "Enter", "if-shell", guard, "resize-pane -Z", "",
 	}})
 
 	// New shell pane.
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"bind", "t", "split-window", "-h", "-c", cfg.WorkDir,
+		"bind", "t", "if-shell", guard, "split-window -h -c " + cfg.WorkDir, "clock-mode",
 	}})
 
 	// Close pane.
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"bind", "w", "kill-pane",
+		"bind", "w", "if-shell", guard, "kill-pane", "choose-window",
 	}})
 
 	// Quit all.
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"bind", "q", "kill-session",
+		"bind", "q", "if-shell", guard, "kill-session", "display-panes",
 	}})
 
 	return cmds

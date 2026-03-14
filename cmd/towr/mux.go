@@ -22,7 +22,7 @@ If a mux session already exists, reattaches to it.`,
 			if shell == "" {
 				shell = os.Getenv("SHELL")
 				if shell == "" {
-					shell = "/bin/zsh"
+					shell = "/bin/sh"
 				}
 			}
 

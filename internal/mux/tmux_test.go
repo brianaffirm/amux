@@ -170,6 +170,32 @@ func TestMuxSessionKeybindings(t *testing.T) {
 	}
 }
 
+func TestMuxSessionBindingsAreSessionGuarded(t *testing.T) {
+	cfg := MuxConfig{
+		SessionName: "towr-mux",
+		Shell:       "/bin/zsh",
+		WorkDir:     "/tmp/test",
+		LeaderKey:   "C-a",
+	}
+
+	cmds := BuildKeybindingCommands(cfg)
+
+	// All bind commands should use if-shell with a session name guard.
+	for _, c := range cmds {
+		if c.Args[0] == "bind" {
+			hasIfShell := false
+			for _, arg := range c.Args {
+				if arg == "if-shell" {
+					hasIfShell = true
+				}
+			}
+			if !hasIfShell {
+				t.Errorf("bind %s should use if-shell session guard, got args: %v", c.Args[1], c.Args)
+			}
+		}
+	}
+}
+
 func TestMuxSessionEnablesMouse(t *testing.T) {
 	cfg := MuxConfig{
 		SessionName: "towr-mux",
