@@ -136,6 +136,7 @@ func run() error {
 		newRunCmd(initApp, &jsonFlag),
 		newAuditCmd(initApp, &jsonFlag),
 		newWebCmd(initApp, &jsonFlag),
+		newMuxCmd(),
 	)
 
 	// If no subcommand was provided, launch the TUI dashboard.
