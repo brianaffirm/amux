@@ -483,6 +483,10 @@ func runCheckTask(app *appContext, plan *orchestrate.Plan, task *orchestrate.Tas
 			usage, _ = cost.ParseClaudeTokens(sw.WorktreePath)
 		case sw.WorktreePath != "" && sw.AgentRuntime == "codex":
 			usage, _ = cost.ParseCodexTokens(sw.WorktreePath)
+			if usage.Source == "unavailable" {
+				usage = cost.EstimateTokens(task.Prompt)
+				usage.Source = "codex-estimated"
+			}
 		default:
 			usage = cost.EstimateTokens(task.Prompt)
 			if sw.AgentRuntime != "" {
