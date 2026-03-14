@@ -1,0 +1,12 @@
+name: "codex-token-test"
+tasks:
+  - id: codex-task
+    prompt: "List the files in the current directory with ls -la. Do not change any files."
+    agent: codex
+
+  - id: claude-task
+    prompt: "Run echo hello. Do not change any files."
+
+settings:
+  auto_approve: true
+  full_auto: true
