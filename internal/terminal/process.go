@@ -15,9 +15,8 @@ const defaultRingSize = 500
 
 // managedProcess holds the state for a single subprocess managed by ProcessBackend.
 type managedProcess struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	cancel func() // kills the process group
+	cmd   *exec.Cmd
+	stdin io.WriteCloser
 
 	mu           sync.Mutex
 	ring         []string // circular buffer of stdout lines
@@ -254,9 +253,16 @@ func (b *ProcessBackend) Interrupt(id string) error {
 }
 
 // Approve writes the approval key to stdin.
-// For process-based agents, approval keys are sent as text input.
+// Keys like "Enter", "y", "a" are translated: "Enter" becomes an empty SendInput
+// (which appends \n), while single-char keys are sent as-is.
 func (b *ProcessBackend) Approve(id, key string) error {
-	return b.SendInput(id, key)
+	switch key {
+	case "Enter", "C-m":
+		// SendInput auto-appends newline, so empty content = just press Enter.
+		return b.SendInput(id, "")
+	default:
+		return b.SendInput(id, key)
+	}
 }
 
 // CaptureOutput returns the last N lines from the process's stdout ring buffer.
@@ -290,7 +296,9 @@ func (b *ProcessBackend) Attach(id string) error {
 	return fmt.Errorf("attach not supported: process backend is headless")
 }
 
-// IsHeadless returns true — ProcessBackend has no terminal UI.
+// IsHeadless returns false — ProcessBackend manages real processes and supports
+// CreatePane/SendInput/CaptureOutput. It has no attach-able terminal, but it is
+// not headless in the sense that HeadlessBackend is (which is a no-op stub).
 func (b *ProcessBackend) IsHeadless() bool {
-	return true
+	return false
 }

@@ -242,6 +242,50 @@ func TestProcessLastActivityUnknown(t *testing.T) {
 	}
 }
 
+func TestProcessApproveEnterSendsNewline(t *testing.T) {
+	b := NewProcessBackend()
+
+	// cat echoes stdin to stdout. "Enter" should send just a newline, not the word "Enter".
+	if err := b.CreatePane("approve-test", "/tmp", "cat"); err != nil {
+		t.Fatalf("CreatePane: %v", err)
+	}
+	t.Cleanup(func() { b.DestroyPane("approve-test") })
+
+	// Send some text first, then approve with "Enter".
+	b.SendInput("approve-test", "before")
+	b.Approve("approve-test", "Enter")
+	b.SendInput("approve-test", "after")
+
+	time.Sleep(100 * time.Millisecond)
+
+	output, _ := b.CaptureOutput("approve-test", 10)
+	// Should see "before", an empty line (from Enter), and "after" — NOT the word "Enter".
+	if strings.Contains(output, "Enter") {
+		t.Errorf("Approve(Enter) should send newline, not literal 'Enter': %q", output)
+	}
+	if !strings.Contains(output, "before") || !strings.Contains(output, "after") {
+		t.Errorf("expected 'before' and 'after' in output, got %q", output)
+	}
+}
+
+func TestProcessApproveCharKey(t *testing.T) {
+	b := NewProcessBackend()
+
+	if err := b.CreatePane("approve-char", "/tmp", "cat"); err != nil {
+		t.Fatalf("CreatePane: %v", err)
+	}
+	t.Cleanup(func() { b.DestroyPane("approve-char") })
+
+	// Approving with "a" (Cursor's key) should send literal "a".
+	b.Approve("approve-char", "a")
+	time.Sleep(100 * time.Millisecond)
+
+	output, _ := b.CaptureOutput("approve-char", 10)
+	if !strings.Contains(output, "a") {
+		t.Errorf("expected 'a' in output, got %q", output)
+	}
+}
+
 func TestProcessAttachErrors(t *testing.T) {
 	b := NewProcessBackend()
 	if err := b.Attach("anything"); err == nil {
@@ -249,10 +293,10 @@ func TestProcessAttachErrors(t *testing.T) {
 	}
 }
 
-func TestProcessIsHeadless(t *testing.T) {
+func TestProcessIsNotHeadless(t *testing.T) {
 	b := NewProcessBackend()
-	if !b.IsHeadless() {
-		t.Error("expected ProcessBackend to be headless")
+	if b.IsHeadless() {
+		t.Error("ProcessBackend should not be headless — it manages real processes")
 	}
 }
 
