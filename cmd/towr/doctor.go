@@ -98,6 +98,24 @@ func newDoctorCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Co
 						Detail: "no towr tmux sessions found — towr open will not be able to attach (sessions are created by towr spawn)",
 					})
 				}
+
+				// Check for stale terminal_target references.
+				for _, ws := range workspaces {
+					if ws.Status == "ARCHIVED" || ws.Status == "LANDED" {
+						continue
+					}
+					if ws.TerminalTarget == "" {
+						continue
+					}
+					err := exec.Command("tmux", "display-message", "-p", "-t", ws.TerminalTarget, "").Run()
+					if err != nil {
+						problems = append(problems, Problem{
+							WorkspaceID: ws.ID,
+							Kind:        "stale_terminal_target",
+							Detail:      fmt.Sprintf("pane %s no longer exists", ws.TerminalTarget),
+						})
+					}
+				}
 			}
 
 			// Check for orphaned towr branches not tracked in the store.
