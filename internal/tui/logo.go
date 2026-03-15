@@ -8,41 +8,44 @@ import (
 //go:embed logo.txt
 var logoRaw string
 
-// logoMaxLines is the number of sampled lines to show — just the head of the
-// tower, which is narrow enough to center properly in the control pane.
-const logoMaxLines = 9
-
-// scaleLogo returns a compact, centered version of the logo's head that fits
-// within maxW columns. Takes every 2nd row from the first ~18 source lines.
+// scaleLogo centers the logo within maxW columns.
 func scaleLogo(maxW int) string {
 	lines := strings.Split(strings.TrimRight(logoRaw, "\n"), "\n")
 
-	// Find the first non-empty line to skip blank top margin.
-	first := 0
-	for first < len(lines) && strings.TrimSpace(lines[first]) == "" {
-		first++
+	// Strip blank top/bottom margins.
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
 	}
-	lines = lines[first:]
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
 
-	// Sample every 2nd line, stopping after logoMaxLines.
-	var sampled []string
-	maxContent := 0
-	for i, line := range lines {
-		if i%2 != 0 {
+	// Find the minimum leading whitespace so we can strip it uniformly,
+	// preserving the relative shape of the logo.
+	minIndent := -1
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		stripped := strings.TrimSpace(line)
-		runes := []rune(stripped)
-		if len(runes) > maxW {
-			stripped = string(runes[:maxW])
-			runes = []rune(stripped)
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		if minIndent < 0 || indent < minIndent {
+			minIndent = indent
 		}
-		sampled = append(sampled, stripped)
-		if len(runes) > maxContent {
-			maxContent = len(runes)
+	}
+	if minIndent < 0 {
+		minIndent = 0
+	}
+
+	// Strip the common indent and measure the widest content line.
+	stripped := make([]string, len(lines))
+	maxContent := 0
+	for i, line := range lines {
+		if len(line) > minIndent {
+			line = line[minIndent:]
 		}
-		if len(sampled) >= logoMaxLines {
-			break
+		stripped[i] = line
+		if w := len([]rune(line)); w > maxContent {
+			maxContent = w
 		}
 	}
 
@@ -53,7 +56,7 @@ func scaleLogo(maxW int) string {
 	}
 	padding := strings.Repeat(" ", pad)
 	var out []string
-	for _, line := range sampled {
+	for _, line := range stripped {
 		out = append(out, padding+line)
 	}
 	return strings.Join(out, "\n")
