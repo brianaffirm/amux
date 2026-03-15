@@ -127,7 +127,6 @@ all arguments are joined into a single task prompt.`,
 			if plan.Settings.Web {
 				startWebDashboard(plan.Settings.WebAddr)
 			}
-			startMuxStatusUpdater()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -139,12 +138,14 @@ all arguments are joined into a single task prompt.`,
 			}()
 
 			handle, err := svc.Start(ctx, req)
+			startMuxStatusUpdater(plan.Name, handle)
 			if handle != nil {
 				for handle.Status == control.RunRunning {
 					time.Sleep(100 * time.Millisecond)
 				}
 				fmt.Printf("\nRun %s: %s\n", handle.ID, handle.Status)
 			}
+			cleanupMuxEnv()
 			if err == nil && plan.Settings.ReactToReviews {
 				runWatchReact(app, parsePollInterval(plan))
 			}

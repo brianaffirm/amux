@@ -93,17 +93,46 @@ func startWebDashboard(addr string) {
 	fmt.Printf("[%s] Web dashboard: http://127.0.0.1%s\n", time.Now().Format("15:04:05"), addr)
 }
 
-func startMuxStatusUpdater() {
-	if !mux.SessionExists(mux.DefaultSessionName) {
+func startMuxStatusUpdater(planName string, handle *control.RunHandle) {
+	session := mux.DefaultSessionName
+	if !mux.SessionExists(session) {
 		return
+	}
+	// Set plan name immediately.
+	if planName != "" {
+		_ = mux.SetSessionEnv(session, "TOWR_PLAN", planName)
 	}
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
+		startTime := time.Now()
 		for range ticker.C {
-			_ = mux.UpdateStatusBar(mux.DefaultSessionName)
+			elapsed := int(time.Since(startTime).Minutes())
+			_ = mux.SetSessionEnv(session, "TOWR_ELAPSED", fmt.Sprintf("%d", elapsed))
+			if handle != nil {
+				var completed int
+				for _, st := range handle.TaskStates {
+					if st == "completed" {
+						completed++
+					}
+				}
+				_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", fmt.Sprintf("%d", completed))
+			}
+			_ = mux.UpdateStatusBar(session)
 		}
 	}()
+}
+
+func cleanupMuxEnv() {
+	session := mux.DefaultSessionName
+	if !mux.SessionExists(session) {
+		return
+	}
+	_ = mux.SetSessionEnv(session, "TOWR_PLAN", "")
+	_ = mux.SetSessionEnv(session, "TOWR_COST", "")
+	_ = mux.SetSessionEnv(session, "TOWR_ELAPSED", "")
+	_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", "")
+	_ = mux.UpdateStatusBar(session)
 }
 
 func parsePollInterval(plan *orchestrate.Plan) time.Duration {
