@@ -305,6 +305,12 @@ func (s *RunService) checkTask(runID string, req RunRequest, task *TaskSpec, st 
 	case "idle":
 		// Task completed.
 		_ = s.Runtime.AutoCommit(task.ID)
+		// Mark workspace as completed with exit code 0.
+		if sw, err := s.Store.GetWorkspace(req.RepoRoot, task.ID); err == nil && sw != nil {
+			exitZero := 0
+			sw.ExitCode = &exitZero
+			_ = s.Store.SaveWorkspace(sw)
+		}
 		if req.Settings.CreatePR {
 			if err := s.Runtime.CreatePR(task.ID); err != nil {
 				s.Logger.Log("create PR failed for %s: %v", task.ID, err)
