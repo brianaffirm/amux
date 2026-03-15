@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -57,6 +58,20 @@ func buildRunRequest(repoRoot string, plan *orchestrate.Plan) control.RunRequest
 	}
 }
 
+func formatPlanYAML(plan *orchestrate.Plan) string {
+	raw := plan.RawYAML()
+	if raw == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n")
+	for _, line := range strings.Split(strings.TrimRight(raw, "\n"), "\n") {
+		b.WriteString("  " + line + "\n")
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
 func formatDryRun(planName string, items []control.PreRunItem) string {
 	preItems := make([]cost.PreRunItem, len(items))
 	for i, item := range items {
@@ -93,17 +108,61 @@ func startWebDashboard(addr string) {
 	fmt.Printf("[%s] Web dashboard: http://127.0.0.1%s\n", time.Now().Format("15:04:05"), addr)
 }
 
-func startMuxStatusUpdater() {
-	if !mux.SessionExists(mux.DefaultSessionName) {
+func startMuxStatusUpdater(planName string, handle *control.RunHandle, rt *controlRuntime, tasks []orchestrate.Task) {
+	session := mux.DefaultSessionName
+	if !mux.SessionExists(session) {
 		return
+	}
+	// Set plan name immediately.
+	if planName != "" {
+		_ = mux.SetSessionEnv(session, "TOWR_PLAN", planName)
 	}
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
+		startTime := time.Now()
 		for range ticker.C {
-			_ = mux.UpdateStatusBar(mux.DefaultSessionName)
+			elapsed := int(time.Since(startTime).Minutes())
+			_ = mux.SetSessionEnv(session, "TOWR_ELAPSED", fmt.Sprintf("%d", elapsed))
+			if handle != nil {
+				var completed int
+				for _, st := range handle.TaskStates {
+					if st == "completed" {
+						completed++
+					}
+				}
+				_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", fmt.Sprintf("%d", completed))
+			}
+			// Compute aggregate cost across all tasks.
+			if rt != nil {
+				var totalCost float64
+				for _, t := range tasks {
+					model := t.Model
+					if model == "" {
+						model = "sonnet"
+					}
+					_, _, _, actual, _ := rt.ComputeCost(t.ID, model)
+					totalCost += actual
+				}
+				if totalCost > 0 {
+					_ = mux.SetSessionEnv(session, "TOWR_COST", fmt.Sprintf("%.2f", totalCost))
+				}
+			}
+			_ = mux.UpdateStatusBar(session)
 		}
 	}()
+}
+
+func cleanupMuxEnv() {
+	session := mux.DefaultSessionName
+	if !mux.SessionExists(session) {
+		return
+	}
+	_ = mux.SetSessionEnv(session, "TOWR_PLAN", "")
+	_ = mux.SetSessionEnv(session, "TOWR_COST", "")
+	_ = mux.SetSessionEnv(session, "TOWR_ELAPSED", "")
+	_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", "")
+	_ = mux.UpdateStatusBar(session)
 }
 
 func parsePollInterval(plan *orchestrate.Plan) time.Duration {
