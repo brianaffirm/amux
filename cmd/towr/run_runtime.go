@@ -204,11 +204,11 @@ func (r *controlRuntime) ComputeCost(taskID, model string) (int, int, string, fl
 	case sw.WorktreePath != "" && sw.AgentRuntime == "codex":
 		usage, _ = cost.ParseCodexTokens(sw.WorktreePath)
 		if usage.Source == "unavailable" {
-			usage = cost.EstimateTokens("")
+			usage = cost.DefaultEstimate()
 			usage.Source = "codex-estimated"
 		}
 	default:
-		usage = cost.EstimateTokens("")
+		usage = cost.DefaultEstimate()
 	}
 	actualCost := cost.Calculate(model, usage)
 	opusCost := cost.Calculate("opus", usage)

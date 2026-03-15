@@ -164,9 +164,16 @@ func (s *RunService) orchestrate(ctx context.Context, cancel context.CancelFunc,
 				if !s.allDepsCompleted(task, states) {
 					continue
 				}
-				// Budget check.
+				// Budget check: mark as failed so the run can terminate.
 				if req.Options.Budget > 0 && accCost >= req.Options.Budget {
 					s.Logger.Log("budget exhausted (%.2f >= %.2f), skipping %s", accCost, req.Options.Budget, task.ID)
+					st.status = RunFailed
+					close(st.doneCh)
+					handle.TaskStates[task.ID] = st.status
+					s.emitRunEvent(runID, req.RepoRoot, store.EventTaskFailed, map[string]interface{}{
+						"task_id": task.ID,
+						"reason":  "budget exhausted",
+					})
 					continue
 				}
 				s.spawnTask(runID, req, task, st)
@@ -315,12 +322,12 @@ func (s *RunService) checkTask(runID string, req RunRequest, task *TaskSpec, st 
 		inputTokens, outputTokens, source, actualCost, opusCost := s.Runtime.ComputeCost(task.ID, st.decision.Model)
 		*accCost += actualCost
 		s.emitRunEvent(runID, req.RepoRoot, store.EventTaskCost, map[string]interface{}{
-			"task_id":       task.ID,
-			"input_tokens":  inputTokens,
-			"output_tokens": outputTokens,
-			"source":        source,
-			"actual_cost":   actualCost,
-			"opus_cost":     opusCost,
+			"task_id":        task.ID,
+			"input_tokens":   inputTokens,
+			"output_tokens":  outputTokens,
+			"token_source":   source,
+			"estimated_cost": actualCost,
+			"opus_baseline":  opusCost,
 		})
 
 		s.Logger.Log("completed %s — %s", task.ID, truncate(summary, 80))

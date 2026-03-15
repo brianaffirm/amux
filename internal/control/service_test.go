@@ -515,6 +515,57 @@ func TestDryRun(t *testing.T) {
 	}
 }
 
+func TestBudgetExhaustedTerminatesRun(t *testing.T) {
+	ms := newMockStore()
+	rt := newMockRuntime()
+	svc := newTestService(ms, rt)
+
+	req := RunRequest{
+		RepoRoot: "/tmp/test-repo",
+		PlanName: "budget-plan",
+		Tasks: []TaskSpec{
+			{ID: "task-1", Prompt: "first task"},
+			{ID: "task-2", Prompt: "second task", DependsOn: []string{"task-1"}},
+		},
+		Settings: SettingsSnapshot{
+			PollInterval: 10 * time.Millisecond,
+		},
+		Options: RunOptions{
+			Budget: 0.01, // very low budget
+		},
+	}
+
+	// ComputeCost returns $0.50 per task, so after task-1 the budget is exceeded.
+	handle, err := svc.Start(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	waitForRun(t, handle, 5*time.Second)
+
+	// Run should terminate (not hang forever).
+	if handle.Status != RunFailed {
+		t.Fatalf("expected run status %s, got %s", RunFailed, handle.Status)
+	}
+
+	// task-2 should be failed due to budget exhaustion.
+	if handle.TaskStates["task-2"] != RunFailed {
+		t.Fatalf("expected task-2 status %s, got %s", RunFailed, handle.TaskStates["task-2"])
+	}
+
+	// Verify budget exhaustion event emitted.
+	failed := ms.eventsByKind(store.EventTaskFailed)
+	budgetFailed := false
+	for _, ev := range failed {
+		if ev.Data["task_id"] == "task-2" && ev.Data["reason"] == "budget exhausted" {
+			budgetFailed = true
+		}
+	}
+	if !budgetFailed {
+		t.Fatal("expected task.failed event with reason 'budget exhausted' for task-2")
+	}
+}
+
 func TestRunEventsHaveRunID(t *testing.T) {
 	ms := newMockStore()
 	rt := newMockRuntime()
