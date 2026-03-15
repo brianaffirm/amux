@@ -160,7 +160,7 @@ func startWebDashboard(addr string) {
 	fmt.Printf("[%s] Web dashboard: http://127.0.0.1%s\n", time.Now().Format("15:04:05"), addr)
 }
 
-func startMuxStatusUpdater(planName string, handle *control.RunHandle) {
+func startMuxStatusUpdater(planName string, handle *control.RunHandle, rt *controlRuntime, tasks []orchestrate.Task) {
 	session := mux.DefaultSessionName
 	if !mux.SessionExists(session) {
 		return
@@ -184,6 +184,21 @@ func startMuxStatusUpdater(planName string, handle *control.RunHandle) {
 					}
 				}
 				_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", fmt.Sprintf("%d", completed))
+			}
+			// Compute aggregate cost across all tasks.
+			if rt != nil {
+				var totalCost float64
+				for _, t := range tasks {
+					model := t.Model
+					if model == "" {
+						model = "sonnet"
+					}
+					_, _, _, actual, _ := rt.ComputeCost(t.ID, model)
+					totalCost += actual
+				}
+				if totalCost > 0 {
+					_ = mux.SetSessionEnv(session, "TOWR_COST", fmt.Sprintf("%.2f", totalCost))
+				}
 			}
 			_ = mux.UpdateStatusBar(session)
 		}

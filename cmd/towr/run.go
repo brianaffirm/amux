@@ -144,7 +144,7 @@ all arguments are joined into a single task prompt.`,
 			}()
 
 			handle, err := svc.Start(ctx, req)
-			startMuxStatusUpdater(plan.Name, handle)
+			startMuxStatusUpdater(plan.Name, handle, &controlRuntime{app: app, baseBranch: plan.Settings.BaseBranch}, plan.Tasks)
 			if handle != nil {
 				for handle.Status == control.RunRunning {
 					time.Sleep(100 * time.Millisecond)
