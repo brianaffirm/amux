@@ -810,7 +810,9 @@ func (m DashboardModel) renderNarrowDashboard() string {
 		maxW = 40
 	}
 
-	// Header.
+	// Logo + name header.
+	b.WriteString(dimStyle.Render(scaleLogo(maxW)))
+	b.WriteString("\n")
 	b.WriteString(headerStyle.Render("TOWR"))
 	b.WriteString("\n")
 
