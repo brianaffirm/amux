@@ -938,7 +938,7 @@ func (m DashboardModel) renderNarrowDashboard() string {
 	return b.String()
 }
 
-// estimateProgress returns a 0-100 estimate based on workspace age, status, and diff stats.
+// estimateProgress returns a 0-100 estimate based on workspace age and status.
 func estimateProgress(ws WorkspaceRow) int {
 	if ws.ExitCode != nil {
 		if *ws.ExitCode == 0 {
@@ -946,12 +946,6 @@ func estimateProgress(ws WorkspaceRow) int {
 		}
 		return 0
 	}
-
-	// If the workspace has committed changes (pushed or merged), it's likely done.
-	if ws.Pushed || ws.Merged {
-		return 95
-	}
-
 	// Estimate based on activity duration — typical task takes ~15 min.
 	age := ws.Age
 	if age == "" || age == "-" {
@@ -973,17 +967,6 @@ func estimateProgress(ws WorkspaceRow) int {
 
 	// Asymptotic curve: approaches 95% over ~20 minutes.
 	pct := int(95 * (1 - 1/(1+minutes/8)))
-
-	// Boost estimate if there are actual code changes — agent is making progress.
-	totalChanges := ws.Added + ws.Removed
-	if totalChanges > 0 {
-		// Having changes means at least 50% done; scale up with more changes.
-		changeBoost := 50 + min(totalChanges, 45)
-		if changeBoost > pct {
-			pct = changeBoost
-		}
-	}
-
 	if pct < 5 {
 		pct = 5
 	}

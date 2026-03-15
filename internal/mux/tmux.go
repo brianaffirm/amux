@@ -149,15 +149,12 @@ func BuildKeybindingCommands(cfg MuxConfig) []TmuxCmd {
 		"bind", "q", "if-shell", guard, "kill-session", "display-panes",
 	}})
 
-	// Pane border format — shows pane title as a badge/pill on the top border.
-	// Active panes: white text on blue background (stands out).
-	// Inactive panes: gray text on dark background (recedes).
-	// NOTE: use spaces (not commas) in #[] styles to avoid conflict with #{?} conditional commas.
-	borderFmt := " #[fg=#484f58]━━#[default] " +
-		"#{?#{pane_active}," +
-		"#[fg=#ffffff bg=#1f6feb bold] #{pane_title} #[default]," +
-		"#[fg=#8b949e bg=#161b22] #{pane_title} #[default]}" +
-		" #[fg=#484f58]━━#[default] "
+	// Pane border format — shows pane title on top border with color.
+	// pane_title is set by SetPaneTitle to "name │ agent model │ +N/-N".
+	// Use tmux format conditionals to colorize the active pane differently.
+	borderFmt := " #[fg=#6e7681]──#[default] " +
+		"#{?#{pane_active},#[fg=#58a6ff bold],#[fg=#8b949e]}#{pane_title}" +
+		"#[default] #[fg=#6e7681]──#[default] "
 	cmds = append(cmds, TmuxCmd{Args: []string{
 		"set", "-t", session, "pane-border-format", borderFmt,
 	}})
@@ -165,14 +162,10 @@ func BuildKeybindingCommands(cfg MuxConfig) []TmuxCmd {
 		"set", "-t", session, "pane-border-status", "top",
 	}})
 	cmds = append(cmds, TmuxCmd{Args: []string{
-		"set", "-t", session, "pane-border-style", "fg=#484f58",
+		"set", "-t", session, "pane-border-style", "fg=#30363d",
 	}})
 	cmds = append(cmds, TmuxCmd{Args: []string{
 		"set", "-t", session, "pane-active-border-style", "fg=#58a6ff",
-	}})
-	// Distinct line characters for pane borders.
-	cmds = append(cmds, TmuxCmd{Args: []string{
-		"set", "-t", session, "pane-border-lines", "heavy",
 	}})
 
 	return cmds
@@ -253,14 +246,28 @@ type MuxPaneInfo struct {
 // After adding, applies focus layout so the focused pane stays large.
 func AddPane(session, cwd string) (MuxPaneInfo, error) {
 	paneCount := CountMuxPanes(session)
+
+	if paneCount <= 2 {
+		// First agent: reuse the master pane (pane 1) as the hero.
+		// Get its pane ID, change its cwd, and return it.
+		paneID := getPaneID(session, 1)
+		if paneID == "" {
+			// Fallback: split if we can't find pane 1.
+			return addPaneSplit(session, cwd, paneCount)
+		}
+		// Change the pane's working directory by sending cd.
+		_ = exec.Command("tmux", "send-keys", "-t", paneID, "cd "+cwd+" && clear", "C-m").Run()
+		return MuxPaneInfo{PaneID: paneID, Index: 1}, nil
+	}
+
 	return addPaneSplit(session, cwd, paneCount)
 }
 
 // addPaneSplit creates a new pane via split-window.
 func addPaneSplit(session, cwd string, paneCount int) (MuxPaneInfo, error) {
 	var splitArgs []string
-	if paneCount <= 2 {
-		// First agent: split master horizontally to create the hero pane.
+	if paneCount <= 3 {
+		// Second agent: split hero horizontally to create the sidebar column.
 		splitArgs = []string{"split-window", "-t", session + ":mux.1", "-h",
 			"-c", cwd, "-P", "-F", "#{pane_id}\t#{pane_index}"}
 	} else {
@@ -288,16 +295,6 @@ func addPaneSplit(session, cwd string, paneCount int) (MuxPaneInfo, error) {
 	applyMuxLayout(session, paneCount+1)
 
 	return info, nil
-}
-
-// paneTitle returns the current title of a tmux pane.
-func paneTitle(paneID string) string {
-	cmd := exec.Command("tmux", "display-message", "-t", paneID, "-p", "#{pane_title}")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
 
 // getPaneID returns the tmux pane ID for a given pane index in the mux window.
@@ -347,16 +344,8 @@ func findLastPane(session string) string {
 	return lastPaneID
 }
 
-// applyMuxLayout resizes panes to the mission control layout.
-//
-// With agents present (4+ panes):
-//
-//	pane 0 (control/TUI) = 18%
-//	pane 1 (master/log)  = minimal (~25 cols, just enough for status)
-//	pane 2 (hero agent)  = ~50%
-//	pane 3+ (sidebar)    = remaining, stacked vertically
-//
-// Without agents (2-3 panes): control 20% | master 80%.
+// applyMuxLayout resizes panes to the mission control layout:
+// pane 0 (control) = 20%, pane 1 (focused/master) = 60%, rest share right column.
 func applyMuxLayout(session string, totalPanes int) {
 	if totalPanes <= 2 {
 		return
@@ -374,26 +363,17 @@ func applyMuxLayout(session string, totalPanes int) {
 		return
 	}
 
-	controlW := termW * 18 / 100
-	if controlW < 28 {
-		controlW = 28
+	controlW := termW * 20 / 100
+	if controlW < 30 {
+		controlW = 30
 	}
 
-	// Resize control pane.
+	// Resize control pane to 20%.
 	_ = exec.Command("tmux", "resize-pane", "-t", session+":mux.0", "-x", fmt.Sprintf("%d", controlW)).Run()
 
-	if totalPanes <= 3 {
-		// No agents yet — master gets remaining space.
-		return
-	}
-
-	// Agents present: shrink master to minimal log strip, hero gets the space.
-	masterW := 30
-	_ = exec.Command("tmux", "resize-pane", "-t", session+":mux.1", "-x", fmt.Sprintf("%d", masterW)).Run()
-
-	// Hero agent (pane 2) gets ~50% of terminal.
-	heroW := termW * 50 / 100
-	_ = exec.Command("tmux", "resize-pane", "-t", session+":mux.2", "-x", fmt.Sprintf("%d", heroW)).Run()
+	// Resize master/focused pane (pane 1) to 55%.
+	focusW := termW * 55 / 100
+	_ = exec.Command("tmux", "resize-pane", "-t", session+":mux.1", "-x", fmt.Sprintf("%d", focusW)).Run()
 }
 
 // RemovePane kills a pane in the mux window by its tmux pane ID.

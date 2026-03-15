@@ -396,18 +396,6 @@ func TestEstimateProgress(t *testing.T) {
 	if got := estimateProgress(ws5); got != 95 {
 		t.Errorf("estimateProgress(2d) = %d, want 95", got)
 	}
-
-	// With code changes -> boosted to at least 50.
-	ws6 := WorkspaceRow{Age: "1m", Added: 20, Removed: 5}
-	if got := estimateProgress(ws6); got < 50 {
-		t.Errorf("estimateProgress(1m, +20/-5) = %d, want >= 50", got)
-	}
-
-	// Pushed -> 95%.
-	ws7 := WorkspaceRow{Age: "2m", Pushed: true}
-	if got := estimateProgress(ws7); got != 95 {
-		t.Errorf("estimateProgress(pushed) = %d, want 95", got)
-	}
 }
 
 func TestRenderProgressBar(t *testing.T) {

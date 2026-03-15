@@ -160,52 +160,34 @@ func startWebDashboard(addr string) {
 	fmt.Printf("[%s] Web dashboard: http://127.0.0.1%s\n", time.Now().Format("15:04:05"), addr)
 }
 
-// startMuxStatusUpdater launches a background goroutine that updates the tmux
-// status bar every 5 seconds. Returns a stop function that cancels the updater.
-func startMuxStatusUpdater(planName string, handle *control.RunHandle, rt *controlRuntime, tasks []orchestrate.Task) func() {
+func startMuxStatusUpdater(planName string, handle *control.RunHandle) {
 	session := mux.DefaultSessionName
 	if !mux.SessionExists(session) {
-		return func() {}
+		return
 	}
 	// Set plan name immediately.
 	if planName != "" {
 		_ = mux.SetSessionEnv(session, "TOWR_PLAN", planName)
 	}
-	done := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		startTime := time.Now()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-			}
+		for range ticker.C {
 			elapsed := int(time.Since(startTime).Minutes())
 			_ = mux.SetSessionEnv(session, "TOWR_ELAPSED", fmt.Sprintf("%d", elapsed))
 			if handle != nil {
-				_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", fmt.Sprintf("%d", handle.CompletedCount()))
-			}
-			// Compute aggregate cost across all tasks.
-			if rt != nil {
-				var totalCost float64
-				for _, t := range tasks {
-					model := t.Model
-					if model == "" {
-						model = "sonnet"
+				var completed int
+				for _, st := range handle.TaskStates {
+					if st == "completed" {
+						completed++
 					}
-					_, _, _, actual, _ := rt.ComputeCost(t.ID, model)
-					totalCost += actual
 				}
-				if totalCost > 0 {
-					_ = mux.SetSessionEnv(session, "TOWR_COST", fmt.Sprintf("%.2f", totalCost))
-				}
+				_ = mux.SetSessionEnv(session, "TOWR_COMPLETED", fmt.Sprintf("%d", completed))
 			}
 			_ = mux.UpdateStatusBar(session)
 		}
 	}()
-	return func() { close(done) }
 }
 
 func cleanupMuxEnv() {
