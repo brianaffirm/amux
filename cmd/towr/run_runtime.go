@@ -34,17 +34,40 @@ func (r *controlRuntime) SpawnWorkspace(taskID, prompt, agentType, repoRoot stri
 	if runtimeName == "" {
 		runtimeName = "claude-code"
 	}
-	ws, err := r.app.manager.Create(workspace.CreateOpts{
-		ID:         taskID,
-		RepoRoot:   repoRoot,
-		BaseBranch: baseBranch,
-		Source:     workspace.SpawnSource{Kind: workspace.SpawnFromTask, Value: prompt},
-		Agent:      &workspace.AgentIdentity{Runtime: runtimeName},
-		CopyPaths:  r.app.cfg.Workspace.CopyPaths,
-		LinkPaths:  r.app.cfg.Workspace.LinkPaths,
-	})
-	if err != nil {
-		return err
+
+	// Resume logic: if a workspace already exists, check health before creating.
+	// Healthy = Status==READY, worktree dir on disk, branch in git.
+	// Unhealthy = auto-clean and recreate. This handles partial failures and
+	// stale records from aborted runs without requiring manual cleanup.
+	var ws *workspace.Workspace
+	if existing, err := r.app.manager.Get(taskID); err == nil && existing != nil {
+		branchOK, _ := workspace.BranchExists(repoRoot, existing.Branch)
+		_, worktreeErr := os.Stat(existing.WorktreePath)
+		healthy := existing.Status == workspace.StatusReady && branchOK && worktreeErr == nil
+		if healthy {
+			fmt.Fprintf(os.Stderr, "↩ %s: resuming existing workspace\n", taskID)
+			ws = existing
+		} else {
+			fmt.Fprintf(os.Stderr, "⚠ %s: stale workspace (status=%s, branch=%v, worktree=%v) — cleaning up\n",
+				taskID, existing.Status, branchOK, worktreeErr == nil)
+			_ = r.app.manager.Delete(taskID)
+		}
+	}
+
+	if ws == nil {
+		var err error
+		ws, err = r.app.manager.Create(workspace.CreateOpts{
+			ID:         taskID,
+			RepoRoot:   repoRoot,
+			BaseBranch: baseBranch,
+			Source:     workspace.SpawnSource{Kind: workspace.SpawnFromTask, Value: prompt},
+			Agent:      &workspace.AgentIdentity{Runtime: runtimeName},
+			CopyPaths:  r.app.cfg.Workspace.CopyPaths,
+			LinkPaths:  r.app.cfg.Workspace.LinkPaths,
+		})
+		if err != nil {
+			return err
+		}
 	}
 	if !r.app.term.IsHeadless() {
 		if err := r.app.term.CreatePane(ws.ID, ws.WorktreePath, ""); err != nil {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,11 +20,12 @@ import (
 
 func newCleanupCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.Command {
 	var (
-		staleFlag  bool
-		mergedFlag bool
-		dryRunFlag bool
-		forceFlag  bool
-		reasonFlag string
+		staleFlag     bool
+		mergedFlag    bool
+		dryRunFlag    bool
+		forceFlag     bool
+		reasonFlag    string
+		dangerousFlag bool
 	)
 
 	cmd := &cobra.Command{
@@ -32,6 +34,12 @@ func newCleanupCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.C
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: workspaceIDCompletion(initApp),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// --dangerous nukes everything: all workspaces, worktrees, towr tmux
+			// sessions, mux session, and state files. Dev/test use only.
+			if dangerousFlag {
+				return cleanupDangerous(dryRunFlag)
+			}
+
 			// --stale requires repo context (repo-scoped operation).
 			if staleFlag {
 				app, err := initApp()
@@ -210,8 +218,162 @@ func newCleanupCmd(initApp func() (*appContext, error), jsonFlag *bool) *cobra.C
 	cmd.Flags().BoolVar(&dryRunFlag, "dry-run", false, "preview without executing")
 	cmd.Flags().BoolVar(&forceFlag, "force", false, "skip confirmation for dirty worktrees")
 	cmd.Flags().StringVar(&reasonFlag, "reason", "", "audit reason for --force bypass")
+	cmd.Flags().BoolVar(&dangerousFlag, "dangerous", false, "nuke all towr state: workspaces, worktrees, tmux sessions, mux-panes.json (dev/test use only)")
 
 	return cmd
+}
+
+// cleanupDangerous removes all towr state unconditionally.
+// Intended for development and test plan cleanup only.
+func cleanupDangerous(dryRun bool) error {
+	towrHome := config.TowrHome()
+	worktreeRoot := config.WorktreeRoot()
+
+	steps := []struct {
+		label string
+		fn    func() error
+	}{
+		{
+			label: "kill towr-mux tmux session",
+			fn: func() error {
+				out, err := exec.Command("tmux", "kill-session", "-t", "towr-mux").CombinedOutput()
+				if err != nil && !strings.Contains(string(out), "no server") && !strings.Contains(string(out), "session not found") {
+					return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+				}
+				return nil
+			},
+		},
+		{
+			label: "kill towr/* tmux sessions",
+			fn: func() error {
+				out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").CombinedOutput()
+				if err != nil {
+					return nil // no tmux server running
+				}
+				for _, name := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+					if strings.HasPrefix(name, "towr/") {
+						_ = exec.Command("tmux", "kill-session", "-t", name).Run()
+					}
+				}
+				return nil
+			},
+		},
+		{
+			label: fmt.Sprintf("remove all worktrees under %s", worktreeRoot),
+			fn: func() error {
+				entries, err := os.ReadDir(worktreeRoot)
+				if err != nil {
+					return nil // nothing there
+				}
+				for _, repo := range entries {
+					repoWorktreeDir := filepath.Join(worktreeRoot, repo.Name())
+					wts, err := os.ReadDir(repoWorktreeDir)
+					if err != nil {
+						continue
+					}
+					repoRoot := filepath.Join(os.Getenv("HOME"), "w", repo.Name())
+					for _, wt := range wts {
+						wtPath := filepath.Join(repoWorktreeDir, wt.Name())
+						// Deregister from git if repo root exists, then force-remove.
+						if _, err := os.Stat(repoRoot); err == nil {
+							_ = exec.Command("git", "-C", repoRoot, "worktree", "remove", "--force", wtPath).Run()
+						}
+						_ = os.RemoveAll(wtPath)
+					}
+					_ = os.Remove(repoWorktreeDir)
+				}
+				return nil
+			},
+		},
+		{
+			label: fmt.Sprintf("delete towr/* git branches across all repos in ~/w/"),
+			fn: func() error {
+				wDir := filepath.Join(os.Getenv("HOME"), "w")
+				repos, err := os.ReadDir(wDir)
+				if err != nil {
+					return nil
+				}
+				for _, repo := range repos {
+					repoRoot := filepath.Join(wDir, repo.Name())
+					if _, err := os.Stat(filepath.Join(repoRoot, ".git")); err != nil {
+						continue
+					}
+					out, err := exec.Command("git", "-C", repoRoot, "branch", "--list", "towr/*").Output()
+					if err != nil || len(out) == 0 {
+						continue
+					}
+					for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+						branch := strings.TrimSpace(strings.TrimPrefix(line, "* "))
+						if branch != "" {
+							_ = exec.Command("git", "-C", repoRoot, "branch", "-D", branch).Run()
+						}
+					}
+				}
+				return nil
+			},
+		},
+		{
+			label: fmt.Sprintf("remove mux-panes.json from %s", towrHome),
+			fn: func() error {
+				return os.Remove(filepath.Join(towrHome, "mux-panes.json"))
+			},
+		},
+		{
+			label: fmt.Sprintf("wipe all workspace DB records under %s/repos/", towrHome),
+			fn: func() error {
+				reposDir := filepath.Join(towrHome, "repos")
+				entries, err := os.ReadDir(reposDir)
+				if err != nil {
+					return nil
+				}
+				for _, entry := range entries {
+					dbPath := filepath.Join(reposDir, entry.Name(), "state.db")
+					s := store.NewSQLiteStore()
+					if err := s.Init(dbPath); err != nil {
+						continue
+					}
+					// Use AllRepos:true to list across all repo roots in this DB.
+					workspaces, _ := s.ListWorkspaces("", store.ListFilter{AllRepos: true})
+					for _, ws := range workspaces {
+						_ = s.DeleteWorkspace(ws.RepoRoot, ws.ID)
+					}
+					s.Close()
+				}
+				return nil
+			},
+		},
+		{
+			label: "kill orphaned git status processes",
+			fn: func() error {
+				_ = exec.Command("pkill", "-f", "git status --porcelain").Run()
+				_ = exec.Command("pkill", "-f", "git worktree add").Run()
+				return nil
+			},
+		},
+	}
+
+	fmt.Println("⚠  towr cleanup --dangerous")
+	fmt.Println("   This will destroy all towr sessions, worktrees, and state.")
+	fmt.Println()
+
+	for _, step := range steps {
+		if dryRun {
+			fmt.Printf("  [dry-run] %s\n", step.label)
+			continue
+		}
+		fmt.Printf("  → %s ... ", step.label)
+		if err := step.fn(); err != nil {
+			fmt.Printf("warning: %v\n", err)
+		} else {
+			fmt.Println("done")
+		}
+	}
+
+	if !dryRun {
+		fmt.Println()
+		fmt.Println("✓ towr state cleared.")
+	}
+	return nil
 }
 
 func cleanupStale(app *appContext, dryRun bool, jsonOutput bool) error {
