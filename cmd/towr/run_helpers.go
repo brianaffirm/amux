@@ -16,12 +16,34 @@ import (
 	"github.com/brianaffirm/towr/internal/router"
 )
 
-// stdLog implements control.Logger with timestamped stdout output.
+// stdLog implements control.Logger with colored timestamped stdout output.
 type stdLog struct{}
 
 func (l *stdLog) Log(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	fmt.Printf("[%s] %s\n", time.Now().Format("15:04:05"), msg)
+	ts := ansiDim + time.Now().Format("15:04:05") + ansiReset
+	colored := colorizeLogMsg(msg)
+	fmt.Printf(" %s  %s\n", ts, colored)
+}
+
+// colorizeLogMsg applies color based on log message content.
+func colorizeLogMsg(msg string) string {
+	switch {
+	case strings.HasPrefix(msg, "completed"):
+		return ansiGreen + "✓ " + msg + ansiReset
+	case strings.HasPrefix(msg, "dispatched"):
+		return ansiCyan + "▸ " + msg + ansiReset
+	case strings.HasPrefix(msg, "escalating"):
+		return ansiYellow + "↑ " + msg + ansiReset
+	case strings.Contains(msg, "failed") || strings.Contains(msg, "error"):
+		return ansiRed + "✗ " + msg + ansiReset
+	case strings.HasPrefix(msg, "reconciled"):
+		return ansiDim + "○ " + msg + ansiReset
+	case strings.HasPrefix(msg, "budget"):
+		return ansiYellow + "$ " + msg + ansiReset
+	default:
+		return msg
+	}
 }
 
 func buildRunRequest(repoRoot string, plan *orchestrate.Plan) control.RunRequest {
@@ -58,6 +80,17 @@ func buildRunRequest(repoRoot string, plan *orchestrate.Plan) control.RunRequest
 	}
 }
 
+// ANSI color constants for run output.
+const (
+	ansiReset  = "\033[0m"
+	ansiBold   = "\033[1m"
+	ansiDim    = "\033[2m"
+	ansiGreen  = "\033[32m"
+	ansiYellow = "\033[33m"
+	ansiCyan   = "\033[36m"
+	ansiRed    = "\033[31m"
+)
+
 func formatPlanYAML(plan *orchestrate.Plan) string {
 	raw := plan.RawYAML()
 	if raw == "" {
@@ -66,10 +99,29 @@ func formatPlanYAML(plan *orchestrate.Plan) string {
 	var b strings.Builder
 	b.WriteString("\n")
 	for _, line := range strings.Split(strings.TrimRight(raw, "\n"), "\n") {
-		b.WriteString("  " + line + "\n")
+		colored := highlightYAMLLine(line)
+		b.WriteString("  " + colored + "\n")
 	}
 	b.WriteString("\n")
 	return b.String()
+}
+
+// highlightYAMLLine applies simple YAML syntax highlighting to a line.
+func highlightYAMLLine(line string) string {
+	trimmed := strings.TrimSpace(line)
+	indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+
+	switch {
+	case trimmed == "" || strings.HasPrefix(trimmed, "#"):
+		return indent + ansiDim + trimmed + ansiReset
+	case strings.HasPrefix(trimmed, "- id:"):
+		return indent + ansiCyan + ansiBold + trimmed + ansiReset
+	case strings.Contains(trimmed, ":") && !strings.HasPrefix(trimmed, "-"):
+		parts := strings.SplitN(trimmed, ":", 2)
+		return indent + ansiCyan + parts[0] + ansiReset + ":" + parts[1]
+	default:
+		return line
+	}
 }
 
 func formatDryRun(planName string, items []control.PreRunItem) string {
