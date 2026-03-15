@@ -49,6 +49,7 @@ type SettingsSnapshot struct {
 	Budget         float64
 	Web            bool
 	WebAddr        string
+	BaseBranch     string
 }
 
 type RunHandle struct {

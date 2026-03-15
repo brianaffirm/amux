@@ -16,13 +16,17 @@ import (
 
 // controlRuntime adapts appContext to the control.AgentRuntime interface.
 type controlRuntime struct {
-	app *appContext
+	app        *appContext
+	baseBranch string // optional override from plan settings
 }
 
 func (r *controlRuntime) SpawnWorkspace(taskID, prompt, agentType, repoRoot string, depIDs []string) error {
-	baseBranch := "main"
-	if detected, err := workspace.DetectDefaultBranch(repoRoot); err == nil {
-		baseBranch = detected
+	baseBranch := r.baseBranch
+	if baseBranch == "" {
+		baseBranch = "main"
+		if detected, err := workspace.DetectDefaultBranch(repoRoot); err == nil {
+			baseBranch = detected
+		}
 	}
 	runtimeName := agentType
 	if runtimeName == "" {

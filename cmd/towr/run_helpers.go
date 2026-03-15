@@ -48,6 +48,7 @@ func buildRunRequest(repoRoot string, plan *orchestrate.Plan) control.RunRequest
 			Budget:         plan.Settings.Budget,
 			Web:            plan.Settings.Web,
 			WebAddr:        plan.Settings.WebAddr,
+			BaseBranch:     plan.Settings.BaseBranch,
 		},
 		Options: control.RunOptions{
 			Budget:   plan.Settings.Budget,
